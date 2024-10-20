@@ -1,4 +1,4 @@
-# ts-build-utils
+# @nartallax/ts-build-utils
 A collection of utility scripts that help with build process of TypeScript projects.  
 Powered by [ESBuild](https://www.npmjs.com/package/esbuild), [@chialab/esbuild-html-plugin](https://www.npmjs.com/package/@chialab/esbuild-plugin-html), [dts-bundle-generator](https://www.npmjs.com/package/dts-bundle-generator) and more.  
 
