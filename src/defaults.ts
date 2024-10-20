@@ -174,6 +174,18 @@ export const buildUtils = ({
 		}
 	}
 
+	const getBinPathsFromPackageJson = (): string[] => {
+		if(!packageJsonContent.bin){
+			return []
+		}
+
+		if(typeof(packageJsonContent.bin) === "string"){
+			return [packageJsonContent.bin]
+		}
+
+		return Object.values(packageJsonContent.bin)
+	}
+
 	const getSingleTypescriptEntrypoint = (override?: string): string => {
 		if(override){
 			return override
@@ -209,6 +221,22 @@ export const buildUtils = ({
 		If a function call happens while previous function call is still working - the call is queued.
 		Only one call may be queued at a time; subsequent calls are lost. */
 		oneAtATime,
+
+		/** Add NodeJS shebang (#!/usr/bin/env node) to a file that is supposed to be executable.
+		Expects the files to be present in target directory.
+		Defaults to all files mentioned in "bin" field of package.json */
+		addNodeShebang: async(opts: {jsFile?: string | string[]}) => {
+			const files = Array.isArray(opts.jsFile) ? opts.jsFile : opts.jsFile ? [opts.jsFile] : getBinPathsFromPackageJson()
+			if(files.length === 0){
+				throw new Error("No files are passed, and also no files are defined in \"bin\" field of package.json. Nothing to add shebang to.")
+			}
+			for(const file of files){
+				const fullPath = Path.resolve(target, file)
+				let content = await Fs.promises.readFile(fullPath, "utf-8")
+				content = "#!/usr/bin/env node\n\n" + content
+				await Fs.promises.writeFile(fullPath, content, "utf-8")
+			}
+		},
 
 		/** Remove some fields from package.json that no-one needs in published package, like "scripts" or "devDependenices".
 		Puts result into a new file in target directory. */
