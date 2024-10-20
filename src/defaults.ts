@@ -225,7 +225,7 @@ export const buildUtils = ({
 		/** Add NodeJS shebang (#!/usr/bin/env node) to a file that is supposed to be executable.
 		Expects the files to be present in target directory.
 		Defaults to all files mentioned in "bin" field of package.json */
-		addNodeShebang: async(opts: {jsFile?: string | string[]}) => {
+		addNodeShebang: async(opts: {jsFile?: string | string[]} = {}) => {
 			const files = Array.isArray(opts.jsFile) ? opts.jsFile : opts.jsFile ? [opts.jsFile] : getBinPathsFromPackageJson()
 			if(files.length === 0){
 				throw new Error("No files are passed, and also no files are defined in \"bin\" field of package.json. Nothing to add shebang to.")
