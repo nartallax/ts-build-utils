@@ -38,7 +38,7 @@ switch(process.argv[2]){
 
   case "publish": {
     await build()
-    await copyToTarget("README.md", "LICENSE")
+    await copyToTarget("README.md", "LICENSE", "package.json")
     await publishToNpm({dryRun: true})
   }
 }
