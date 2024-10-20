@@ -1,6 +1,6 @@
 {
   "name": "@nartallax/ts-build-utils",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "A collection of utility scripts for automating build process of TypeScript projects.",
   "author": "Nartallax",
   "license": "0BSD",
