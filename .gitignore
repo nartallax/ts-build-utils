@@ -1,0 +1,5 @@
+js
+target
+node_modules
+.DS_Store
+src/generated

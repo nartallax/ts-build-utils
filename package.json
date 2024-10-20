@@ -1,0 +1,42 @@
+{
+  "name": "@nartallax/ts-build-utils",
+  "version": "1.0.0",
+  "description": "A collection of utility scripts for automating build process of TypeScript projects.",
+  "author": "Nartallax",
+  "license": "0BSD",
+  "type": "module",
+  "main": "ts-build-utils.js",
+  "types": "ts-build-utils.d.ts",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nartallax/ts-build-utils.git"
+  },
+  "bugs": {
+    "url": "https://github.com/nartallax/ts-build-utils/issues"
+  },
+  "homepage": "https://github.com/nartallax/ts-build-utils#readme",
+  "scripts": {
+    "typecheck": "node esbuild.cjs typecheck",
+    "release": "node esbuild.cjs release",
+    "pub": "node esbuild.cjs publish"
+  },
+  "dependencies": {
+    "@chialab/esbuild-plugin-html": "^0.18.2",
+    "@nartallax/clamsensor": "^2.0.10",
+    "@nartallax/package-cutter": "^1.0.2",
+    "chokidar": "^4.0.1",
+    "dts-bundle-generator": "^9.5.1",
+    "esbuild": "0.23.1",
+    "jsonc-parser": "^3.3.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.13.0",
+    "@stylistic/eslint-plugin": "^2.9.0",
+    "@types/node": "^22.7.7",
+    "@typescript-eslint/eslint-plugin": "^8.10.0",
+    "@typescript-eslint/parser": "^8.10.0",
+    "eslint": "^9.13.0",
+    "typescript": "^5.6.3",
+    "typescript-eslint": "^8.10.0"
+  }
+}

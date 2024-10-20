@@ -1,0 +1,48 @@
+{ 
+    "exclude": ["node_modules", "**/node_modules/*"],
+    "include": ["./src/**/*"],
+    "compilerOptions": {
+
+        "outDir": "js",
+        "rootDir": "./src",
+        "baseUrl": "./src",
+        
+        "esModuleInterop": true,
+        "moduleResolution": "Bundler",
+        "module": "es2022",
+        "target": "es2022",
+        "importsNotUsedAsValues": "remove",
+        "isolatedModules": true,
+        
+        "lib": ["dom", "ESNext"],
+
+        "allowJs": false,
+        "jsx": "react-jsx",
+        
+        "noErrorTruncation": false,
+        "downlevelIteration": true,
+        "skipLibCheck": true,
+
+        "useDefineForClassFields": true,
+
+        "forceConsistentCasingInFileNames": true,
+        
+        "noImplicitUseStrict": false,
+        "alwaysStrict": true,
+        "strict": true,
+        "strictFunctionTypes": true,
+        "strictNullChecks": true,
+        "strictBindCallApply": true,
+        "strictPropertyInitialization": true,
+        "allowUnreachableCode": false,
+        "allowUnusedLabels": false,
+        "noFallthroughCasesInSwitch": true,
+        "noImplicitAny": true,
+        "noImplicitReturns": true,
+        "noImplicitThis": true,
+        "noStrictGenericChecks": false,
+        "noUnusedLocals": true,
+        "noUnusedParameters": true,
+        "noUncheckedIndexedAccess": true
+    }
+}
