@@ -14,16 +14,29 @@ npm install --save-dev @nartallax/ts-build-utils
 // Main entrypoint of this package is buildUtils function:
 import {buildUtils} from "@nartallax/ts-build-utils"
 
-// This function accepts parameters describing your project and creates a bunch of other functions (not everything listed here):
-const {clear, build, runTests, copyToTarget, publishToNpm, serve} = buildUtils({
+// This function accepts parameters describing your project
+// and creates a bunch of other functions
+// (not everything listed here, be sure to check typedefs):
+const {
+  clear, 
+  build, 
+  runTests, 
+  copyToTarget, 
+  publishToNpm, 
+  serve
+} = buildUtils({
   buildOptions: {
     entryPoints: ["./src/index.html"]
   }
 })
 
-// buildUtils() assumes a lot of stuff, like that project has tsconfig.json, and that tsconfig.json has rootDir set;
-// this may not always be true, but that's checked, so if something is not there - the script will tell you.
-// also override options are there for almost everything; if you
+// buildUtils() assumes a lot of stuff,
+// like that project has tsconfig.json, 
+// and that tsconfig.json has rootDir set;
+// this may not always be true, but that's checked, 
+// so if something is not there - the script will tell you.
+// also override options are there for almost everything;
+// you can pass various options to most util functions.
 
 // after acquiring the utils, you may use them to describe your build process:
 await clear()
