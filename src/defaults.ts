@@ -10,7 +10,7 @@ import {runJs} from "build_utils/run_js"
 import {generateTestEntrypoint, runTests, TestEntrypointGenerationOptions, TestRunOptions} from "build_utils/testing"
 import {typecheck, TypecheckOptions} from "build_utils/typecheck"
 import {runShell} from "shell"
-import {buildWatch, BuildWatchOptions} from "build_utils/esbuild"
+import {BuildOptionsWithHandlers, buildWatch, omitBuildHandlers} from "build_utils/esbuild"
 import {publishToNpm, PublishToNpmOptions} from "build_utils/npm"
 
 type BuildUtilsDefaults = {
@@ -39,7 +39,7 @@ type BuildUtilsDefaults = {
 	Defaults to content of "types" field from package.json, resolved from target directory. */
 	dtsPath?: string
 	/** Default build options. Will be added to all build actions defaulted build utils perform. */
-	defaultBuildOptions?: Partial<Esbuild.BuildOptions>
+	defaultBuildOptions?: Partial<BuildOptionsWithHandlers>
 }
 
 type Optional<T, K extends keyof T> = Omit<T, K> & Partial<Pick<T, K>>
@@ -108,8 +108,15 @@ export const buildUtils = ({
 		return entryPoints
 	}
 
-	const getBuildOptions = async(overrides?: Partial<Esbuild.BuildOptions>) => {
-		let defaultEntryPoints = getEntrypoints(defaults.defaultBuildOptions ?? {})
+	const getBuildOptions = async(overrides?: Partial<BuildOptionsWithHandlers>) => {
+		const defaultBuildOptions = defaults.defaultBuildOptions ?? {
+			bundle: true,
+			format: packageJsonContent.type === "module" ? "esm" : "cjs",
+			platform: "neutral",
+			packages: "external"
+		}
+
+		let defaultEntryPoints = getEntrypoints(defaultBuildOptions)
 		if(defaultEntryPoints.length === 1){
 			const entryPointFile = defaultEntryPoints[0]
 			if(typeof(entryPointFile) === "string" && tsRegexp.test(entryPointFile)){
@@ -125,7 +132,7 @@ export const buildUtils = ({
 			}
 		}
 
-		const plugins = defaults.defaultBuildOptions?.plugins ?? []
+		const plugins = defaultBuildOptions?.plugins ?? []
 		plugins.push(...overrides?.plugins ?? [])
 
 		if(overrides?.entryPoints){
@@ -141,18 +148,27 @@ export const buildUtils = ({
 			}
 		}
 
+		const dfltOnBuildEnd = defaultBuildOptions.onBuildEnd
+		const ovrdOnBuildEnd = overrides?.onBuildEnd
+		if(dfltOnBuildEnd || ovrdOnBuildEnd){
+			plugins.push({
+				name: "ts-build-utils-event-handlers",
+				setup: ctx => {
+					ctx.onEnd(() => {
+						ovrdOnBuildEnd?.()
+						dfltOnBuildEnd?.()
+					})
+				}
+			})
+		}
+
 		return {
 			sourceRoot: getSourcesRoot(),
 			// outdir is required for serve, and is also used for everything else for consistensy
 			outdir: target,
-			...defaults.defaultBuildOptions ?? {
-				bundle: true,
-				format: packageJsonContent.type === "module" ? "esm" : "cjs",
-				platform: "neutral",
-				packages: "external"
-			},
+			...omitBuildHandlers(defaultBuildOptions),
 			entryPoints: defaultEntryPoints,
-			...(overrides ?? {}),
+			...omitBuildHandlers(overrides ?? {}),
 			plugins
 		}
 	}
@@ -233,13 +249,13 @@ export const buildUtils = ({
 		}),
 
 		/** Build a project from sources, starting at entrypoint */
-		build: async(options: Partial<Esbuild.BuildOptions> = {}) => await Esbuild.build(await getBuildOptions(options)),
+		build: async(options: Partial<BuildOptionsWithHandlers> = {}) => await Esbuild.build(await getBuildOptions(options)),
 
 		/** Build a project from sources, starting at entrypoint; watch over the source files and rebuild as they change */
-		watch: async(options: Partial<BuildWatchOptions> = {}) => await buildWatch(await getBuildOptions(options)),
+		watch: async(options: Partial<BuildOptionsWithHandlers> = {}) => await buildWatch(await getBuildOptions(options)),
 
 		/** Start an HTTP server to serve build artifacts; rebuilds on each request. */
-		serve: async(serveOptions: Esbuild.ServeOptions = {}, options: Partial<Esbuild.BuildOptions> = {}) => {
+		serve: async(serveOptions: Esbuild.ServeOptions = {}, options: Partial<BuildOptionsWithHandlers> = {}) => {
 			const ctx = await Esbuild.context(await getBuildOptions(options))
 			const serveResult = await ctx.serve({
 				servedir: target,
