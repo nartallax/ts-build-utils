@@ -8,3 +8,28 @@ export const omit = <T extends object, K extends keyof T>(value: T, ...keys: K[]
 	}
 	return result
 }
+
+export const oneAtATime = (doWork: () => Promise<void>): () => Promise<void> => {
+	let isWorking = false
+	let isWorkQueued = false
+
+	const tryDoWork = async() => {
+		if(isWorking){
+			isWorkQueued = true
+			return
+		}
+
+		isWorking = true
+		try {
+			await doWork()
+		} finally {
+			isWorking = false
+			if(isWorkQueued){
+				isWorkQueued = false
+				void tryDoWork()
+			}
+		}
+	}
+
+	return tryDoWork
+}

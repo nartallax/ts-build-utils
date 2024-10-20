@@ -12,6 +12,7 @@ import {typecheck, TypecheckOptions} from "build_utils/typecheck"
 import {runShell} from "shell"
 import {BuildOptionsWithHandlers, buildWatch, omitBuildHandlers} from "build_utils/esbuild"
 import {publishToNpm, PublishToNpmOptions} from "build_utils/npm"
+import {oneAtATime} from "utils"
 
 type BuildUtilsDefaults = {
 	/** Root directory with all the source files.
@@ -203,6 +204,11 @@ export const buildUtils = ({
 
 		/** Run a shell command */
 		runShell,
+
+		/** Wraps another function.
+		If a function call happens while previous function call is still working - the call is queued.
+		Only one call may be queued at a time; subsequent calls are lost. */
+		oneAtATime,
 
 		/** Remove some fields from package.json that no-one needs in published package, like "scripts" or "devDependenices".
 		Puts result into a new file in target directory. */
