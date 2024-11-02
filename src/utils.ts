@@ -1,3 +1,5 @@
+import * as Fs from "fs"
+
 export const omit = <T extends object, K extends keyof T>(value: T, ...keys: K[]): Omit<T, K> => {
 	const result: any = {}
 	const keySet = new Set(keys)
@@ -32,4 +34,18 @@ export const oneAtATime = (doWork: () => Promise<void>): () => Promise<void> => 
 	}
 
 	return tryDoWork
+}
+
+export const getFileSizeStr = async(path: string): Promise<string> => {
+	let stat: Fs.Stats
+	try {
+		stat = await Fs.promises.stat(path)
+	} catch(e){
+		void e
+		return "-"
+	}
+	const level = Math.floor(Math.log2(stat.size) / 10)
+	const name = ["b", "kb", "mb", "gb", "tb", "pb", "what goes after petabyte? uhhh."][level]
+	const size = stat.size / (2 ** (level * 10))
+	return `${level === 0 ? size : size.toFixed(2)}${name}`
 }

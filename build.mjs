@@ -39,7 +39,6 @@ async function main(mode) {
 			await typecheck()
 		} break
 
-
 		case "publish": {
 			await main("build")
 			await publishToNpm()
