@@ -14,7 +14,7 @@ const defaultBuildOptions = {
 
 let buildUtils = await buildBuildUtilsForTheBuild()
 
-let {clear, typecheck, build, publishToNpm, cutPackageJson, copyToTarget, generateDts, printStats, runTests} = buildUtils({
+let {clear, typecheck, build, publishToNpm, cutPackageJson, copyToTarget, generateDts, printStats} = buildUtils({
 	defaultBuildOptions
 })
 

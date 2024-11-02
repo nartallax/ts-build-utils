@@ -2,6 +2,7 @@ import * as Path from "path"
 import * as Fs from "fs"
 import * as JSONC from "jsonc-parser"
 import * as Esbuild from "esbuild"
+import * as Chokidar from "chokidar"
 
 import {generateDts, GenerateDtsOptions} from "build_utils/dts"
 import {npx} from "build_utils/npx"
@@ -14,6 +15,10 @@ import {publishToNpm, PublishToNpmOptions} from "build_utils/npm"
 import {oneAtATime} from "utils"
 import {cutPackageJson} from "@nartallax/package-cutter"
 import {StatsCollector} from "build_utils/stats"
+import {generateIconFont} from "@nartallax/icon-font-tool"
+
+type IconParams = Parameters<typeof generateIconFont>[0]
+type CustomBuildOptions = BuildOptionsWithHandlers & {icons?: IconParams}
 
 type BuildUtilsDefaults = {
 	/** Root directory with all the source files.
@@ -42,6 +47,9 @@ type BuildUtilsDefaults = {
 	dtsPath?: string
 	/** Default build options. Will be added to all build actions defaulted build utils perform. */
 	defaultBuildOptions?: Partial<BuildOptionsWithHandlers>
+	/** Options that describe icon font.
+	Icon font is automatically built on build(), and watched on watch()/serve() */
+	icons?: IconParams
 }
 
 type Optional<T, K extends keyof T> = Omit<T, K> & Partial<Pick<T, K>>
@@ -212,18 +220,49 @@ export const buildUtils = ({
 
 	const stats = new StatsCollector()
 
-	const getFileSizeStr = async(path: string): Promise<string> => {
-		let stat: Fs.Stats
-		try {
-			stat = await Fs.promises.stat(path)
-		} catch(e){
-			void e
-			return "-"
+	const tryWatchIcons = async(overrides?: IconParams): Promise<() => void> => {
+		const args = getEffectiveIconArgs(overrides)
+		if(args){
+			return await watchIcons(args)
 		}
-		const level = Math.floor(Math.log2(stat.size) / 10)
-		const name = ["b", "kb", "mb", "gb", "tb", "pb", "what goes after petabyte? uhhh."][level]
-		const size = stat.size / (2 ** (level * 10))
-		return `${level === 0 ? size : size.toFixed(2)}${name}`
+		return () => {}
+	}
+
+	const tryBuildIcons = async(overrides?: IconParams) => {
+		const args = getEffectiveIconArgs(overrides)
+		if(args){
+			await generateIconFont(args)
+		}
+	}
+
+	const watchIcons = async(args: IconParams): Promise<() => void> => {
+		await generateIconFont(args)
+		const watcher = Chokidar.watch([args.svgDir], {awaitWriteFinish: true}).on("all", async() => {
+			try {
+				await generateIconFont(args)
+			} catch(e){
+				console.error("Error rebuilding icons: ", e)
+			}
+		})
+		return () => watcher.close()
+	}
+
+	const getEffectiveIconArgs = (overrides?: IconParams): IconParams | null => {
+		if(!overrides && !defaults.icons){
+			return null
+		}
+
+		return {...(defaults.icons! ?? {}), ...(overrides! ?? {})}
+	}
+
+	const prependToHandler = (handler: (() => void) | undefined, preActions: () => void | Promise<void>): () => void => {
+		if(!handler){
+			return preActions
+		}
+		return async() => {
+			await Promise.resolve(preActions)
+			return handler()
+		}
 	}
 
 	return {
@@ -304,15 +343,29 @@ export const buildUtils = ({
 		})),
 
 		/** Build a project from sources, starting at entrypoint */
-		build: stats.wrap("build", async(options: Partial<BuildOptionsWithHandlers> = {}) => {
+		build: stats.wrap("build", async(options: Partial<CustomBuildOptions> = {}) => {
+			await tryBuildIcons(options.icons)
 			return await Esbuild.build(await getBuildOptions(options))
 		}, () => getFileSizeStr(Path.resolve(target, packageJsonContent.main))),
 
-		/** Build a project from sources, starting at entrypoint; watch over the source files and rebuild as they change */
-		watch: async(options: Partial<BuildOptionsWithHandlers> = {}) => await buildWatch(await getBuildOptions(options)),
+		/** Generate icon font. */
+		buildIcons: stats.wrap("icons", tryBuildIcons),
+
+		/** Build a project from sources, starting at entrypoint; watch over the source files and rebuild as they change.
+		If there are icon params, icons will be watched too. */
+		watch: async(options: Partial<CustomBuildOptions> = {}) => {
+			prependToHandler(options.onBuildEnd, await tryWatchIcons(options.icons))
+			return await buildWatch(await getBuildOptions(options))
+		},
+
+		/** The same as watch(), but for icons only.
+		@returns function to stop watching. */
+		watchIcons: tryWatchIcons,
 
 		/** Start an HTTP server to serve build artifacts; rebuilds on each request. */
-		serve: async(serveOptions: Esbuild.ServeOptions = {}, options: Partial<BuildOptionsWithHandlers> = {}) => {
+		serve: async(serveOptions: Esbuild.ServeOptions = {}, options: Partial<CustomBuildOptions> = {}) => {
+			prependToHandler(options.onBuildEnd, await tryWatchIcons(options.icons))
+
 			const ctx = await Esbuild.context(await getBuildOptions(options))
 			const serveResult = await ctx.serve({
 				servedir: target,
@@ -341,7 +394,7 @@ export const buildUtils = ({
 	}
 }
 
-export const parseJsoncOrThrow = (jsoncString: string, filePath?: string) => {
+const parseJsoncOrThrow = (jsoncString: string, filePath?: string) => {
 	const errors: JSONC.ParseError[] = []
 	const parsingResult = JSONC.parse(
 		jsoncString,
@@ -356,4 +409,18 @@ export const parseJsoncOrThrow = (jsoncString: string, filePath?: string) => {
 		)
 	}
 	return parsingResult
+}
+
+const getFileSizeStr = async(path: string): Promise<string> => {
+	let stat: Fs.Stats
+	try {
+		stat = await Fs.promises.stat(path)
+	} catch(e){
+		void e
+		return "-"
+	}
+	const level = Math.floor(Math.log2(stat.size) / 10)
+	const name = ["b", "kb", "mb", "gb", "tb", "pb", "what goes after petabyte? uhhh."][level]
+	const size = stat.size / (2 ** (level * 10))
+	return `${level === 0 ? size : size.toFixed(2)}${name}`
 }
