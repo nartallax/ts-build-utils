@@ -3,7 +3,6 @@ import * as Fs from "fs"
 import * as JSONC from "jsonc-parser"
 import * as Esbuild from "esbuild"
 
-import {cutPackageJson, CutPackageJsonOptions} from "build_utils/cut_package"
 import {generateDts, GenerateDtsOptions} from "build_utils/dts"
 import {npx} from "build_utils/npx"
 import {runJs} from "build_utils/run_js"
@@ -13,6 +12,7 @@ import {runShell} from "shell"
 import {BuildOptionsWithHandlers, buildWatch, omitBuildHandlers} from "build_utils/esbuild"
 import {publishToNpm, PublishToNpmOptions} from "build_utils/npm"
 import {oneAtATime} from "utils"
+import {cutPackageJson} from "@nartallax/package-cutter"
 
 type BuildUtilsDefaults = {
 	/** Root directory with all the source files.
@@ -48,8 +48,9 @@ type Optional<T, K extends keyof T> = Omit<T, K> & Partial<Pick<T, K>>
 /** Creates a version of all build utils that have defaults for most mandatory parameters.
 Also adds some more utility functions that makes no sense to have separately of defaults. */
 export const buildUtils = ({
-	tsconfig = "./tsconfig.json", packageJson = "./package.json", target = "./target", ...defaults
+	packageJson = "./package.json", target = "./target", ...defaults
 }: BuildUtilsDefaults) => {
+	const tsconfig = Path.resolve(defaults.tsconfig ?? "./tsconfig.json")
 	const tsconfigContent = parseJsoncOrThrow(Fs.readFileSync(tsconfig, "utf-8"), tsconfig)
 	const packageJsonContent = JSON.parse(Fs.readFileSync(packageJson, "utf-8"))
 	const testJs = defaults.testJs ?? Path.resolve(target, "./test.js")
@@ -240,9 +241,9 @@ export const buildUtils = ({
 
 		/** Remove some fields from package.json that no-one needs in published package, like "scripts" or "devDependenices".
 		Puts result into a new file in target directory. */
-		cutPackageJson: (opts: Optional<CutPackageJsonOptions, "inputFile" | "outputFile"> = {}) => cutPackageJson({
-			inputFile: packageJson,
-			outputFile: Path.resolve(target, "package.json"),
+		cutPackageJson: (opts: Optional<Parameters<typeof cutPackageJson>[0], "output"> = {}) => cutPackageJson({
+			input: packageJson,
+			output: Path.resolve(target, "package.json"),
 			...opts
 		}),
 
@@ -255,8 +256,9 @@ export const buildUtils = ({
 		}),
 
 		/** Run TypeScript typechecker on all the sources in the project. */
-		typecheck: (options: Optional<TypecheckOptions, "directory"> = {}) => typecheck({
+		typecheck: (options: Optional<TypecheckOptions, "directory" | "tsconfig"> = {}) => typecheck({
 			directory: getSourcesRoot(options.directory),
+			tsconfig,
 			...options
 		}),
 

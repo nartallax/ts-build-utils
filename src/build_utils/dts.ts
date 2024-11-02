@@ -1,6 +1,7 @@
-import {npx, NpxRunOptions} from "build_utils/npx"
+import * as DtsBundleGenerator from "dts-bundle-generator"
+import {promises as Fs} from "fs"
 
-export type GenerateDtsOptions = NpxRunOptions & {
+export type GenerateDtsOptions = {
 	inputFile: string
 	outputFile: string
 	tsconfigPath: string
@@ -9,19 +10,20 @@ export type GenerateDtsOptions = NpxRunOptions & {
 }
 
 export const generateDts = async(options: GenerateDtsOptions) => {
-	const args = [
-		"dts-bundle-generator",
-		"--out-file",
-		options.outputFile,
-		"--project",
-		options.tsconfigPath
-	]
-	if(!options.banner){
-		args.push("--no-banner")
+	const result = DtsBundleGenerator.generateDtsBundle([{
+		filePath: options.inputFile,
+		output: {
+			noBanner: true,
+			exportReferencedTypes: false
+		}
+	}], {
+		preferredConfigPath: options.tsconfigPath
+	})
+
+	if(result.length !== 1){
+		throw new Error(`Unexpected output from dts-bundle-generator: ${result.length} entries`)
 	}
-	if(!options.exportReferencedTypes){
-		args.push("--export-referenced-types=false")
-	}
-	args.push(options.inputFile)
-	return await npx(args, options)
+
+	const dtsCode = result[0]!
+	await Fs.writeFile(options.outputFile, dtsCode, "utf-8")
 }

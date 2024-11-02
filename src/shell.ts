@@ -23,6 +23,7 @@ export type ShellRunOptions = {
 }
 
 export const runShell = (opts: ShellRunOptions): Promise<ShellRunResult> => {
+	console.log(opts.executable + " " + (opts.args ?? []).join(" "))
 	return new Promise((resolve, reject) => {
 		const process = startProcess(opts)
 
