@@ -1,14 +1,16 @@
-import {npx, NpxRunOptions} from "build_utils/npx"
-import {runJs} from "build_utils/run_js"
 import * as Esbuild from "esbuild"
+import {Clamsensor} from "@nartallax/clamsensor"
 
-export type TestEntrypointGenerationOptions = NpxRunOptions & {
+export type TestEntrypointGenerationOptions = {
 	sourcesRoot: string
 	generatedTestEntrypointPath: string
 }
 
 export const generateTestEntrypoint = async(options: TestEntrypointGenerationOptions) => {
-	return await npx(["clamsensor_codegen", options.sourcesRoot, options.generatedTestEntrypointPath], options)
+	return await Clamsensor.generateClamsensorBundleFile({
+		testDirPath: options.sourcesRoot,
+		resultPath: options.generatedTestEntrypointPath
+	})
 }
 
 
@@ -16,6 +18,7 @@ export type TestRunOptions = TestEntrypointGenerationOptions & {
 	buildOptions?: Omit<Esbuild.BuildOptions, "entryPoints" | "outfile" | "outdir">
 	testJsFilePath: string
 	nameFilter?: string
+	showStackTraces?: boolean
 }
 
 export const runTests = async(options: TestRunOptions) => {
@@ -26,9 +29,6 @@ export const runTests = async(options: TestRunOptions) => {
 		outdir: undefined,
 		outfile: options.testJsFilePath
 	})
-	return await runJs({
-		jsFile: options.testJsFilePath,
-		exitOnError: options.exitOnError ?? true,
-		args: !options.nameFilter ? [] : [options.nameFilter]
-	})
+	const bundle = await Clamsensor.importBundle(options.testJsFilePath)
+	await bundle.runClamsensorBundle({filter: options.nameFilter, noStackTraces: !(options.showStackTraces ?? true)})
 }

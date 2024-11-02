@@ -22,7 +22,7 @@
   },
   "dependencies": {
     "@chialab/esbuild-plugin-html": "^0.18.2",
-    "@nartallax/clamsensor": "^2.0.10",
+    "@nartallax/clamsensor": "^2.1.3",
     "@nartallax/package-cutter": "^1.0.7",
     "chokidar": "^4.0.1",
     "dts-bundle-generator": "^9.5.1",

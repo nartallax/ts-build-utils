@@ -130,7 +130,7 @@ export const buildUtils = ({
 					if(ext){
 						outName = outName.substring(0, outName.length - ext.length)
 					}
-					// FIXME: resolve to ./target here?
+					// we are not resolving to ./target here because outdir option is passed
 					defaultEntryPoints = [{in: entryPointFile, out: outName}]
 				}
 			}
