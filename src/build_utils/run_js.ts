@@ -1,5 +1,6 @@
 import * as Process from "process"
-import {runShell, ShellRunOptions} from "shell"
+import * as ChildProcess from "child_process"
+import {runShell, ShellRunOptions, startProcess} from "shell"
 
 export type RunJsOptions = Omit<ShellRunOptions, "executable"> & {
 	jsFile: string
@@ -11,4 +12,48 @@ export const runJs = async(options: RunJsOptions) => {
 		executable: options.nodeJsPath ?? Process.argv[0]!,
 		args: [options.jsFile, ...(options.args ?? [])]
 	})
+}
+
+export type JsProcess = {
+	restart: () => Promise<void>
+	getProcess: () => ChildProcess.ChildProcess | null
+}
+
+export type JsProcessOptions = RunJsOptions & {
+	jsFile: string
+	nodeJsPath?: string
+	restartSignal?: NodeJS.Signals
+}
+
+export const startJsProcess = async(options: JsProcessOptions): Promise<JsProcess> => {
+	let process: ChildProcess.ChildProcess | null = null
+
+	const startIt = async() => {
+		process = await startProcess({
+			...options,
+			executable: options.nodeJsPath ?? Process.argv[0]!,
+			args: [options.jsFile, ...(options.args ?? [])]
+		})
+	}
+
+	await startIt()
+
+	return {
+		getProcess: () => process,
+		restart: () => {
+			if(process){
+				const proc = process
+				return new Promise(ok => {
+					proc.once("exit", async() => {
+						await startIt()
+						ok()
+					})
+					proc.kill(options.restartSignal ?? "SIGINT")
+				})
+
+			} else {
+				return startIt()
+			}
+		}
+	}
 }

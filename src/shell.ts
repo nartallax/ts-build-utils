@@ -42,7 +42,7 @@ export const runShell = (opts: ShellRunOptions): Promise<ShellRunResult> => {
 	})
 }
 
-const startProcess = (opts: ShellRunOptions) => {
+export const startProcess = (opts: ShellRunOptions) => {
 	let binaryPath = opts.executable
 	const cliArgs = opts.args ?? []
 	const spawnOpts: ChildProcess.SpawnOptions = {

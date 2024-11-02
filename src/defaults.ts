@@ -5,7 +5,7 @@ import * as Chokidar from "chokidar"
 
 import {generateDts, GenerateDtsOptions} from "build_utils/dts"
 import {npx} from "build_utils/npx"
-import {runJs} from "build_utils/run_js"
+import {runJs, startJsProcess} from "build_utils/run_js"
 import {generateTestEntrypoint, runTests, TestEntrypointGenerationOptions, TestRunOptions} from "build_utils/testing"
 import {typecheck, TypecheckOptions} from "build_utils/typecheck"
 import {runShell} from "shell"
@@ -104,6 +104,9 @@ export const buildUtils = (options: BuildUtilsDefaults) => {
 
 		/** Run arbitrary JS file in a separate process */
 		runJs,
+
+		/** Start long-running process from JS file. */
+		startJsProcess,
 
 		/** Run a shell command */
 		runShell,
