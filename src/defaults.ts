@@ -13,6 +13,7 @@ import {BuildOptionsWithHandlers, buildWatch, omitBuildHandlers} from "build_uti
 import {publishToNpm, PublishToNpmOptions} from "build_utils/npm"
 import {oneAtATime} from "utils"
 import {cutPackageJson} from "@nartallax/package-cutter"
+import {StatsCollector} from "build_utils/stats"
 
 type BuildUtilsDefaults = {
 	/** Root directory with all the source files.
@@ -129,6 +130,7 @@ export const buildUtils = ({
 					if(ext){
 						outName = outName.substring(0, outName.length - ext.length)
 					}
+					// FIXME: resolve to ./target here?
 					defaultEntryPoints = [{in: entryPointFile, out: outName}]
 				}
 			}
@@ -208,6 +210,22 @@ export const buildUtils = ({
 		return result
 	}
 
+	const stats = new StatsCollector()
+
+	const getFileSizeStr = async(path: string): Promise<string> => {
+		let stat: Fs.Stats
+		try {
+			stat = await Fs.promises.stat(path)
+		} catch(e){
+			void e
+			return "-"
+		}
+		const level = Math.floor(Math.log2(stat.size) / 10)
+		const name = ["b", "kb", "mb", "gb", "tb", "pb", "what goes after petabyte? uhhh."][level]
+		const size = stat.size / (2 ** (level * 10))
+		return `${level === 0 ? size : size.toFixed(2)}${name}`
+	}
+
 	return {
 		/** Run an npm-installed executable using command-line and npx */
 		npx,
@@ -226,7 +244,7 @@ export const buildUtils = ({
 		/** Add NodeJS shebang (#!/usr/bin/env node) to a file that is supposed to be executable.
 		Expects the files to be present in target directory.
 		Defaults to all files mentioned in "bin" field of package.json */
-		addNodeShebang: async(opts: {jsFile?: string | string[]} = {}) => {
+		addNodeShebang: stats.wrap("add node shebang", async(opts: {jsFile?: string | string[]} = {}) => {
 			const files = Array.isArray(opts.jsFile) ? opts.jsFile : opts.jsFile ? [opts.jsFile] : getBinPathsFromPackageJson()
 			if(files.length === 0){
 				throw new Error("No files are passed, and also no files are defined in \"bin\" field of package.json. Nothing to add shebang to.")
@@ -237,55 +255,58 @@ export const buildUtils = ({
 				content = "#!/usr/bin/env node\n\n" + content
 				await Fs.promises.writeFile(fullPath, content, "utf-8")
 			}
-		},
+		}),
 
 		/** Remove some fields from package.json that no-one needs in published package, like "scripts" or "devDependenices".
 		Puts result into a new file in target directory. */
-		cutPackageJson: (opts: Optional<Parameters<typeof cutPackageJson>[0], "output"> = {}) => cutPackageJson({
+		cutPackageJson: stats.wrap("cut package.json", (opts: Optional<Parameters<typeof cutPackageJson>[0], "output"> = {}) => cutPackageJson({
 			input: packageJson,
 			output: Path.resolve(target, "package.json"),
+			isSilent: true,
 			...opts
-		}),
+		}), () => getFileSizeStr(Path.resolve(target, "package.json"))),
 
 		/** Generate type definitions file from entrypoint */
-		generateDts: (options: Optional<GenerateDtsOptions, "inputFile" | "outputFile" | "tsconfigPath"> = {}) => generateDts({
-			inputFile: getSingleTypescriptEntrypoint(options.inputFile),
-			outputFile: getDtsPath(options.outputFile),
+		generateDts: stats.wrap("generate .d.ts", (options: Optional<GenerateDtsOptions, "inputFile" | "outputFile" | "tsconfigPath"> = {}) => generateDts({
 			tsconfigPath: tsconfig,
-			...options
-		}),
+			...options,
+			inputFile: getSingleTypescriptEntrypoint(options.inputFile),
+			outputFile: getDtsPath(options.outputFile)
+		}), (_, options = {}) => getFileSizeStr(getDtsPath(options.outputFile))),
 
 		/** Run TypeScript typechecker on all the sources in the project. */
-		typecheck: (options: Optional<TypecheckOptions, "directory" | "tsconfig"> = {}) => typecheck({
-			directory: getSourcesRoot(options.directory),
+		typecheck: stats.wrap("typecheck", (options: Optional<TypecheckOptions, "directory" | "tsconfig"> = {}) => typecheck({
 			tsconfig,
-			...options
-		}),
+			...options,
+			directory: getSourcesRoot(options.directory)
+		})),
 
 		/** Gather all .test.ts(x) files in the project and reference them in a single .ts file */
-		generateTestEntrypoint: (options: Optional<TestEntrypointGenerationOptions, "generatedTestEntrypointPath" | "sourcesRoot"> = {}) => generateTestEntrypoint({
-			generatedTestEntrypointPath: getTestEntrypoint(options.generatedTestEntrypointPath),
+		generateTestEntrypoint: stats.wrap("generate test entrypoint", (options: Optional<TestEntrypointGenerationOptions, "generatedTestEntrypointPath" | "sourcesRoot"> = {}) => generateTestEntrypoint({
+			...options,
 			sourcesRoot: getGeneratedSourcesRoot(options.sourcesRoot),
-			...options
-		}),
+			generatedTestEntrypointPath: getTestEntrypoint(options.generatedTestEntrypointPath)
+		}), (_, options = {}) => getTestEntrypoint(options.generatedTestEntrypointPath)),
 
 		/** Run tests from selected .test.ts(x) files */
-		runTests: async(options: Optional<TestRunOptions, "generatedTestEntrypointPath" | "sourcesRoot" | "testJsFilePath"> = {}) => await runTests({
-			generatedTestEntrypointPath: getTestEntrypoint(options.generatedTestEntrypointPath),
+		runTests: stats.wrap("run tests", async(options: Optional<TestRunOptions, "generatedTestEntrypointPath" | "sourcesRoot" | "testJsFilePath"> = {}) => await runTests({
 			sourcesRoot: getSourcesRoot(),
 			testJsFilePath: testJs,
+			...options,
 			buildOptions: await getBuildOptions(options.buildOptions),
-			...options
-		}),
+			generatedTestEntrypointPath: getTestEntrypoint(options.generatedTestEntrypointPath)
+		})),
 
 		/** Publish contents of target directory to NPM */
-		publishToNpm: (options: Optional<PublishToNpmOptions, "directory"> = {}) => publishToNpm({
+		publishToNpm: stats.wrap("publish to npm", (options: Optional<PublishToNpmOptions, "directory"> = {}) => publishToNpm({
 			directory: target,
 			...options
-		}),
+		})),
 
 		/** Build a project from sources, starting at entrypoint */
-		build: async(options: Partial<BuildOptionsWithHandlers> = {}) => await Esbuild.build(await getBuildOptions(options)),
+		build: stats.wrap("build", async(options: Partial<BuildOptionsWithHandlers> = {}) => {
+			return await Esbuild.build(await getBuildOptions(options))
+		}, () => getFileSizeStr(Path.resolve(target, packageJsonContent.main))),
 
 		/** Build a project from sources, starting at entrypoint; watch over the source files and rebuild as they change */
 		watch: async(options: Partial<BuildOptionsWithHandlers> = {}) => await buildWatch(await getBuildOptions(options)),
@@ -303,18 +324,20 @@ export const buildUtils = ({
 		},
 
 		/** Delete everything from target directory */
-		clear: async(options: {directory?: string} = {}) => {
+		clear: stats.wrap("clear", async(options: {directory?: string} = {}) => {
 			await Fs.promises.rm(options.directory ?? target, {force: true, recursive: true})
-		},
+		}),
 
 		/** Copy files to target directory, retaining filenames. */
-		copyToTarget: async(...files: string[]) => {
+		copyToTarget: stats.wrap("copy to target", async(...files: string[]) => {
 			await Promise.all(files.map(async file => {
 				const name = Path.basename(file)
 				const targetPath = Path.resolve(target, name)
 				await Fs.promises.copyFile(file, targetPath)
 			}))
-		}
+		}, async(_, ...files) => (await Promise.all(files.map(file => getFileSizeStr(file)))).join(" + ")),
+
+		printStats: () => console.log(stats.print())
 	}
 }
 

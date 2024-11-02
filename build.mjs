@@ -14,7 +14,7 @@ const defaultBuildOptions = {
 
 let buildUtils = await buildBuildUtilsForTheBuild()
 
-let {clear, typecheck, build, publishToNpm, cutPackageJson, copyToTarget, generateDts} = buildUtils({
+let {clear, typecheck, build, publishToNpm, cutPackageJson, copyToTarget, generateDts, printStats} = buildUtils({
 	defaultBuildOptions
 })
 
@@ -32,6 +32,7 @@ async function main(mode) {
 			await generateDts()
 			await copyToTarget("./LICENSE", "./README.md")
 			await cutPackageJson()
+			printStats()
 		} break
 
 		case "typecheck": {
