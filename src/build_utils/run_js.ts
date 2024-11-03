@@ -28,13 +28,18 @@ export type StartJsProcessOptions = RunJsOptions & {
 export const startJsProcess = async(options: StartJsProcessOptions): Promise<JsProcess> => {
 	let process: ChildProcess.ChildProcess | null = null
 
-	const startIt = async() => {
-		process = await startProcess({
+	const startIt = () => new Promise<void>((ok, bad) => {
+		process = startProcess({
 			...options,
 			executable: options.nodeJsPath ?? Process.argv[0]!,
 			args: [options.jsFile, ...(options.args ?? [])]
 		})
-	}
+		process.once("spawn", ok)
+		process.once("error", bad)
+		process.once("exit", () => {
+			process = null
+		})
+	})
 
 	await startIt()
 
@@ -43,9 +48,8 @@ export const startJsProcess = async(options: StartJsProcessOptions): Promise<JsP
 		restart: () => {
 			if(process){
 				const proc = process
-				return new Promise(ok => {
+				return new Promise<void>(ok => {
 					proc.once("exit", async() => {
-						process = null
 						await startIt()
 						ok()
 					})
