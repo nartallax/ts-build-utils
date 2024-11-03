@@ -45,6 +45,7 @@ export const startJsProcess = async(options: StartJsProcessOptions): Promise<JsP
 				const proc = process
 				return new Promise(ok => {
 					proc.once("exit", async() => {
+						process = null
 						await startIt()
 						ok()
 					})
