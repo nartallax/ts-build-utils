@@ -148,6 +148,17 @@ export const getConfigUtils = (defaults: BuildUtilsDefaults) => {
 		return Object.values(packageJsonContent.bin)
 	}
 
+	const getSingleBinPathFromPackageJson = (): string => {
+		const bins = getBinPathsFromPackageJson()
+		if(bins.length === 0){
+			throw new Error("No runnable JS file is defined in package.json, and none passed explicitly.")
+		}
+		if(bins.length > 1){
+			throw new Error(`${bins.length} runnable JS files are defined in package.json; not sure which one to run. Please pass jsFile explicitly.`)
+		}
+		return Path.resolve(target, bins[0]!)
+	}
+
 	const getSingleTypescriptEntrypoint = (override?: string): string => {
 		if(override){
 			return override
@@ -178,7 +189,7 @@ export const getConfigUtils = (defaults: BuildUtilsDefaults) => {
 	}
 
 	return {
-		target, packageJson, tsconfig, tsconfigContent, packageJsonContent, testJs, getBinPathsFromPackageJson, getSingleTypescriptEntrypoint, getBuildOptions, getDtsPath, getSourcesRoot, getTestEntrypoint, getEffectiveIconArgs, getGeneratedSourcesRoot
+		target, packageJson, tsconfig, tsconfigContent, packageJsonContent, testJs, getBinPathsFromPackageJson, getSingleTypescriptEntrypoint, getBuildOptions, getDtsPath, getSourcesRoot, getTestEntrypoint, getEffectiveIconArgs, getGeneratedSourcesRoot, getSingleBinPathFromPackageJson
 	}
 }
 

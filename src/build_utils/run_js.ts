@@ -19,13 +19,13 @@ export type JsProcess = {
 	getProcess: () => ChildProcess.ChildProcess | null
 }
 
-export type JsProcessOptions = RunJsOptions & {
+export type StartJsProcessOptions = RunJsOptions & {
 	jsFile: string
 	nodeJsPath?: string
 	restartSignal?: NodeJS.Signals
 }
 
-export const startJsProcess = async(options: JsProcessOptions): Promise<JsProcess> => {
+export const startJsProcess = async(options: StartJsProcessOptions): Promise<JsProcess> => {
 	let process: ChildProcess.ChildProcess | null = null
 
 	const startIt = async() => {
