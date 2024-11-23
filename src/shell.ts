@@ -15,6 +15,8 @@ export type ShellRunOptions = {
 	args?: string[]
 	/** Working directory the command will be launched in. */
 	cwd?: string
+	/** Environment variables to be passed to the process. */
+	env?: NodeJS.ProcessEnv
 	/** If true, process.exit(1) will be called if this shell command exits with nonzero exit code, or is killed via signal.
 	Most of the build utils have this set to true by default (but that's overrideable). */
 	exitOnError?: boolean
@@ -47,6 +49,7 @@ export const startProcess = (opts: ShellRunOptions) => {
 	const cliArgs = opts.args ?? []
 	const spawnOpts: ChildProcess.SpawnOptions = {
 		cwd: opts.cwd ?? ".",
+		env: opts.env,
 		stdio: ["ignore", opts.onStdout ? "pipe" : "inherit", opts.onStderr ? "pipe" : "inherit"]
 	}
 

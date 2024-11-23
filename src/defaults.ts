@@ -18,8 +18,8 @@ import {generateIconFont} from "@nartallax/icon-font-tool"
 import {getConfigUtils} from "config_utils"
 
 export type IconParams = Parameters<typeof generateIconFont>[0]
-type CustomBuildOptions = BuildOptionsWithHandlers & {icons?: IconParams}
-export const omitCustomBuildOptions = (opts: CustomBuildOptions) => omitBuildHandlers(omit(opts, "icons"))
+type CustomBuildOptions = BuildOptionsWithHandlers & {iconFont?: IconParams}
+export const omitCustomBuildOptions = (opts: CustomBuildOptions) => omitBuildHandlers(omit(opts, "iconFont"))
 
 export type BuildUtilsDefaults = {
 	/** Root directory with all the source files.
@@ -61,7 +61,7 @@ export const buildUtils = (options: BuildUtilsDefaults) => {
 	const config = getConfigUtils(options)
 	const stats = new StatsCollector()
 
-	const tryWatchIcons = async(overrides?: IconParams): Promise<() => void> => {
+	const tryWatchIconFont = async(overrides?: IconParams): Promise<() => void> => {
 		const args = config.getEffectiveIconArgs(overrides)
 		if(args){
 			return await watchIcons(args)
@@ -69,7 +69,7 @@ export const buildUtils = (options: BuildUtilsDefaults) => {
 		return () => {}
 	}
 
-	const tryBuildIcons = async(overrides?: IconParams) => {
+	const tryBuildIconFont = async(overrides?: IconParams) => {
 		const args = config.getEffectiveIconArgs(overrides)
 		if(args){
 			await generateIconFont(args)
@@ -186,27 +186,27 @@ export const buildUtils = (options: BuildUtilsDefaults) => {
 
 		/** Build a project from sources, starting at entrypoint */
 		build: stats.wrap("build", async(options: Partial<CustomBuildOptions> = {}) => {
-			await tryBuildIcons(options.icons)
+			await tryBuildIconFont(options.iconFont)
 			return await Esbuild.build(await config.getBuildOptions(options))
 		}, () => getFileSizeStr(Path.resolve(config.target, config.packageJsonContent.main))),
 
 		/** Generate icon font. */
-		buildIcons: stats.wrap("icons", tryBuildIcons),
+		buildIconFont: stats.wrap("icons", tryBuildIconFont),
 
 		/** Build a project from sources, starting at entrypoint; watch over the source files and rebuild as they change.
 		If there are icon params, icons will be watched too. */
 		watch: async(options: Partial<CustomBuildOptions> = {}) => {
-			prependToHandler(options.onBuildEnd, await tryWatchIcons(options.icons))
+			prependToHandler(options.onBuildEnd, await tryWatchIconFont(options.iconFont))
 			return await buildWatch(await config.getBuildOptions(options))
 		},
 
 		/** The same as watch(), but for icons only.
 		@returns function to stop watching. */
-		watchIcons: tryWatchIcons,
+		watchIconFont: tryWatchIconFont,
 
 		/** Start an HTTP server to serve build artifacts; rebuilds on each request. */
 		serve: async(serveOptions: Esbuild.ServeOptions = {}, options: Partial<CustomBuildOptions> = {}) => {
-			prependToHandler(options.onBuildEnd, await tryWatchIcons(options.icons))
+			prependToHandler(options.onBuildEnd, await tryWatchIconFont(options.iconFont))
 
 			const ctx = await Esbuild.context(await config.getBuildOptions(options))
 			const serveResult = await ctx.serve({
