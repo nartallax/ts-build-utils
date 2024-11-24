@@ -1,0 +1,166 @@
+import {promises as Fs} from "fs"
+import {runShell, ShellRunOptions} from "shell"
+import * as Process from "process"
+import * as Os from "os"
+import * as Path from "path"
+import * as Semver from "semver"
+import ShellEscape from "shell-escape"
+import {isSymlinkExists, symlink} from "build_utils/fs_utils"
+
+export type SystemdCommandBaseOptions = {
+	/** By default all systemd commands are user-related */
+	isGlobal?: boolean
+}
+
+export type SystemdCommandOptions = Omit<ShellRunOptions, "executable" | "args"> & SystemdCommandBaseOptions & {
+	args: string[]
+}
+
+const systemctlDirEnvName = "XDG_RUNTIME_DIR"
+
+export const systemdCommand = async(opts: SystemdCommandOptions) => {
+	const env = {...opts.env ?? {}}
+
+	if(!Process.env[systemctlDirEnvName]){
+		// for some reason XDG_RUNTIME_DIR is sometimes absent
+		env[systemctlDirEnvName] = `/run/user/${Os.userInfo().uid}`
+	}
+	let args = opts.args
+	if(!opts.isGlobal){
+		args = ["--user", ...args]
+	}
+	return await runShell({
+		...opts, executable: "systemctl", args, env, exitOnError: opts.exitOnError ?? true
+	})
+}
+
+export type GenerateSystemdExecCommandOptions = {
+	jsPath: string
+	/** Semver expression expected */
+	nodeVersion?: string
+	/** Defaults to "bash" */
+	shell?: string
+	/** Additional arguments to be passed to JS file. */
+	args?: string[]
+}
+
+const findMostModernNodeVersionFromSemverRange = (rangeStr: string): string => {
+	const range = new Semver.Range(rangeStr)
+	let bestGuess: string | null = null
+	for(const set of range.set){
+		for(const entry of set){
+			if(!entry.operator.includes("=")){
+				continue
+			}
+
+			if(bestGuess && entry.semver.version < bestGuess){
+				continue
+			}
+
+			bestGuess = entry.semver.version
+		}
+	}
+
+	if(!bestGuess){
+		throw new Error(`Failed to deduce NodeJS version number from semver range ${JSON.stringify(rangeStr)}. If the range only uses > and < operators - try using >= operator.`)
+	}
+
+	return dropExcessiveVersionPortions(bestGuess)
+}
+
+const dropExcessiveVersionPortions = (version: string): string => {
+	while(/^(\d+\.?)+$/.test(version) && version.endsWith(".0")){
+		version = version.substring(0, version.length - 2)
+		// I was thinking about testing with Semver.satisfies if the truncation result is still good, just to be safe
+		// but turns out Semver.satisfies("22", ">=22") === false, while Semver.satisfies("22.0.0", ">=22") === true
+	}
+	return version
+}
+
+export const generateSystemdExecCommand = (opts: GenerateSystemdExecCommandOptions) => {
+	let nodeExpr = "node"
+	if(opts.nodeVersion){
+		const nodeVersion = findMostModernNodeVersionFromSemverRange(opts.nodeVersion)
+		// it would be nice to test for presence of nvm here
+		// but systemd config may be generated on different machine than the machine command will run on
+		// and I don't want to inline this check, because it would be too large
+		nodeExpr = `. $NVM_DIR/nvm.sh; nvm run ${ShellEscape([nodeVersion])}`
+	}
+	const jsExpr = ShellEscape([opts.jsPath, ...opts.args ?? []])
+	const shellCommand = `${nodeExpr} ${jsExpr}`
+	return ShellEscape(["/usr/bin/env", opts.shell ?? "bash", "-c", shellCommand])
+}
+
+export type GenerateServiceSystemdConfigOptions = {
+	outputPath: string
+	description?: string
+	/** Defaults to "simple" */
+	serviceType?: string
+	workingDirectory?: string
+	execStart?: string | string[]
+	/** Defaults to "always" */
+	restart?: "string"
+	/** Defaults to "network.target" */
+	after?: string
+	/** Defaults to "default.target" */
+	wantedBy?: string
+}
+
+export const generateServiceSystemdConfig = async(opts: GenerateServiceSystemdConfigOptions) => {
+	const execStart = !opts.execStart ? [] : typeof(opts.execStart) === "string" ? [opts.execStart] : opts.execStart
+	const config = `
+[Unit]
+Description=${opts.description ?? ""}
+After=${opts.after ?? "network.target"}
+
+[Service]
+Type=${opts.serviceType ?? "simple"}
+${!opts.workingDirectory ? "" : "WorkingDirectory=" + opts.workingDirectory}
+${execStart.map(cmd => `ExecStart=${cmd}`).join("\n")}
+Restart=${opts.restart ?? "always"}                    
+
+[Install]
+WantedBy=${opts.wantedBy ?? "default.target"}
+`
+	await Fs.writeFile(opts.outputPath, config, "utf-8")
+}
+
+export type InstallSystemdConfigOptions = SystemdCommandBaseOptions & {
+	configPath: string
+}
+
+export const installSystemdService = async({configPath, ...opts}: InstallSystemdConfigOptions) => {
+	const serviceFileName = Path.basename(configPath)
+	const serviceSymlinkTarget = opts.isGlobal
+		? Path.resolve(Os.homedir(), ".config/systemd/user/", serviceFileName)
+		: Path.resolve("/etc/systemd/user", serviceFileName)
+
+	if(!(await isSymlinkExists(configPath))){
+		// directory could not exist if it's first ever service of this user
+		await Fs.mkdir(Path.dirname(serviceSymlinkTarget), {recursive: true})
+		await symlink({from: configPath, to: serviceSymlinkTarget})
+		await systemdCommand({...opts, args: ["enable", serviceFileName]})
+	} else {
+		await systemdCommand({...opts, args: ["daemon-reload"]})
+	}
+}
+
+export type SystemdServiceActionOptions = SystemdCommandBaseOptions & {
+	serviceName: string
+}
+
+export const systemdStatus = async({serviceName, ...opts}: SystemdServiceActionOptions) => {
+	await systemdCommand({...opts, args: ["status", serviceName]})
+}
+
+export const systemdRestart = async({serviceName, ...opts}: SystemdServiceActionOptions) => {
+	await systemdCommand({...opts, args: ["restart", serviceName]})
+}
+
+export const systemdStart = async({serviceName, ...opts}: SystemdServiceActionOptions) => {
+	await systemdCommand({...opts, args: ["start", serviceName]})
+}
+
+export const systemdStop = async({serviceName, ...opts}: SystemdServiceActionOptions) => {
+	await systemdCommand({...opts, args: ["stop", serviceName]})
+}

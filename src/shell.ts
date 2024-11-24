@@ -2,6 +2,7 @@ import * as Process from "process"
 import * as ChildProcess from "child_process"
 import * as Stream from "stream"
 import * as Readline from "readline"
+import ShellEscape from "shell-escape"
 
 export type ShellRunResult = {
 	exitCode: number | null
@@ -35,7 +36,9 @@ export const runShell = (opts: ShellRunOptions): Promise<ShellRunResult> => {
 				if(opts.exitOnError){
 					Process.exit(1)
 				}
-				reject(new Error(`${opts.executable} exited with wrong code/signal: code = ${code}, signal = ${signal}`))
+				const commandStr = ShellEscape([opts.executable, ...opts.args ?? []])
+				const exitedWith = code === null ? `signal ${signal}` : `code ${code}`
+				reject(new Error(`${commandStr} exited with ${exitedWith}`))
 				return
 			}
 

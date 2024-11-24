@@ -10,12 +10,15 @@ import {generateTestEntrypoint, runTests, TestEntrypointGenerationOptions, TestR
 import {typecheck, TypecheckOptions} from "build_utils/typecheck"
 import {runShell} from "shell"
 import {BuildOptionsWithHandlers, buildWatch, omitBuildHandlers} from "build_utils/esbuild"
-import {publishToNpm, PublishToNpmOptions} from "build_utils/npm"
+import {npmInstall, NpmInstallOptions, npmPublish, NpmPublishOptions} from "build_utils/npm"
 import {getFileSizeStr, omit, oneAtATime} from "utils"
 import {cutPackageJson} from "@nartallax/package-cutter"
 import {StatsCollector} from "build_utils/stats"
 import {generateIconFont} from "@nartallax/icon-font-tool"
 import {getConfigUtils} from "config_utils"
+import {git} from "build_utils/git"
+import {isDirectoryExists, isFileExists, isSymlinkExists, symlink, SymlinkOptions} from "build_utils/fs_utils"
+import {generateServiceSystemdConfig, GenerateServiceSystemdConfigOptions, generateSystemdExecCommand, GenerateSystemdExecCommandOptions, installSystemdService, InstallSystemdConfigOptions, SystemdServiceActionOptions, systemdRestart, systemdStart, systemdStop, systemdStatus, systemdCommand} from "build_utils/systemd"
 
 export type IconParams = Parameters<typeof generateIconFont>[0]
 type CustomBuildOptions = BuildOptionsWithHandlers & {iconFont?: IconParams}
@@ -98,9 +101,18 @@ export const buildUtils = (options: BuildUtilsDefaults) => {
 		}
 	}
 
-	return {
+	const wrapSystemdAction = (cmd: (opts: SystemdServiceActionOptions) => Promise<void>) =>
+		(opts: Optional<SystemdServiceActionOptions, "serviceName"> = {}) => cmd({
+			serviceName: config.getPackageNameWithoutNamespace(),
+			...opts
+		})
+
+	const buildUtils = {
 		/** Run an npm-installed executable using command-line and npx */
 		npx,
+
+		/** Various git-related functions */
+		git,
 
 		/** Run arbitrary JS file in a separate process */
 		runJs: (opts: Optional<RunJsOptions, "jsFile"> = {}) => runJs({
@@ -178,11 +190,14 @@ export const buildUtils = (options: BuildUtilsDefaults) => {
 			generatedTestEntrypointPath: config.getTestEntrypoint(options.generatedTestEntrypointPath)
 		})),
 
-		/** Publish contents of target directory to NPM */
-		publishToNpm: stats.wrap("publish to npm", (options: Optional<PublishToNpmOptions, "directory"> = {}) => publishToNpm({
-			directory: config.target,
-			...options
-		})),
+		npm: {
+			publish: stats.wrap("npm publish", (options: Optional<NpmPublishOptions, "directory"> = {}) => npmPublish({
+				directory: config.target,
+				...options
+			})),
+
+			install: stats.wrap("npm install", (options: NpmInstallOptions = {}) => npmInstall(options))
+		},
 
 		/** Build a project from sources, starting at entrypoint */
 		build: stats.wrap("build", async(options: Partial<CustomBuildOptions> = {}) => {
@@ -232,7 +247,39 @@ export const buildUtils = (options: BuildUtilsDefaults) => {
 			}))
 		}, async(_, ...files) => (await Promise.all(files.map(file => getFileSizeStr(file)))).join(" + ")),
 
-		printStats: () => console.log(stats.print())
+		printStats: () => console.log(stats.print()),
+
+		symlink: (args: Optional<SymlinkOptions, "to">) => {
+			const defaultTo = Path.resolve(config.target, Path.basename(args.from))
+			return symlink({to: defaultTo, ...args})
+		},
+		isFileExists,
+		isDirectoryExists,
+		isSymlinkExists,
+
+		systemd: {
+			generateExecCommand: (opts: Optional<GenerateSystemdExecCommandOptions, "jsPath"> = {}) => generateSystemdExecCommand({
+				jsPath: opts.jsPath ?? config.getSingleBinPathFromPackageJson(),
+				nodeVersion: config.packageJsonContent.engines?.node,
+				...opts
+			}),
+			generateServiceConfig: (opts: Optional<GenerateServiceSystemdConfigOptions, "outputPath"> = {}) => generateServiceSystemdConfig({
+				execStart: opts.execStart ?? buildUtils.systemd.generateExecCommand(),
+				outputPath: config.systemdConfigPath,
+				...opts
+			}),
+			installService: (opts: Optional<InstallSystemdConfigOptions, "configPath">) => installSystemdService({
+				configPath: config.systemdConfigPath,
+				...opts
+			}),
+			start: wrapSystemdAction(systemdStart),
+			restart: wrapSystemdAction(systemdRestart),
+			stop: wrapSystemdAction(systemdStop),
+			status: wrapSystemdAction(systemdStatus),
+			command: systemdCommand
+		}
 	}
+
+	return buildUtils
 }
 

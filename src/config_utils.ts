@@ -188,8 +188,18 @@ export const getConfigUtils = (defaults: BuildUtilsDefaults) => {
 		return {...(defaults.icons! ?? {}), ...(overrides! ?? {})}
 	}
 
+	const getPackageNameWithoutNamespace = () => {
+		let name: string = packageJsonContent.name
+		if(name.startsWith("@")){
+			name = name.split("/").slice(1).join("/")
+		}
+		return name
+	}
+
+	const systemdConfigPath = Path.resolve(target, getPackageNameWithoutNamespace() + ".service")
+
 	return {
-		target, packageJson, tsconfig, tsconfigContent, packageJsonContent, testJs, getBinPathsFromPackageJson, getSingleTypescriptEntrypoint, getBuildOptions, getDtsPath, getSourcesRoot, getTestEntrypoint, getEffectiveIconArgs, getGeneratedSourcesRoot, getSingleBinPathFromPackageJson
+		target, packageJson, tsconfig, tsconfigContent, packageJsonContent, testJs, systemdConfigPath, getBinPathsFromPackageJson, getSingleTypescriptEntrypoint, getBuildOptions, getDtsPath, getSourcesRoot, getTestEntrypoint, getEffectiveIconArgs, getGeneratedSourcesRoot, getSingleBinPathFromPackageJson, getPackageNameWithoutNamespace
 	}
 }
 

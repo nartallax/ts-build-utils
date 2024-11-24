@@ -14,7 +14,7 @@ const defaultBuildOptions = {
 
 let buildUtils = await buildBuildUtilsForTheBuild()
 
-let {clear, typecheck, build, publishToNpm, cutPackageJson, copyToTarget, generateDts, printStats} = buildUtils({
+let {clear, typecheck, build, npm, cutPackageJson, copyToTarget, generateDts, printStats} = buildUtils({
 	defaultBuildOptions
 })
 
@@ -41,7 +41,7 @@ async function main(mode) {
 
 		case "publish": {
 			await main("build")
-			await publishToNpm()
+			await npm.publish()
 		} break
 	}
 }

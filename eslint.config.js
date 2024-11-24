@@ -7,7 +7,7 @@ let result = tseslint.config(
   eslint.configs.recommended,
   ...tseslint.configs.recommended,
   {
-  files: ['**/*.{ts,tsx}'],
+  files: ['**/*.{ts,tsx}', 'build.mjs'],
   plugins: {
     "@stylistic": stylistic
   },
@@ -118,6 +118,9 @@ let result = tseslint.config(
     "template-tag-spacing": ["warn", "never"],
     "unicode-bom": ["warn", "never"],
     "yield-star-spacing": ["warn", "after"],
+    // it's taken care of by typescript in most cases
+    // and only ever triggers on `console` in build scripts, which is not useful
+    "no-undef": "off",
 
     "@stylistic/func-call-spacing": ["warn", "never"],
     "@stylistic/member-delimiter-style": ["warn", {
