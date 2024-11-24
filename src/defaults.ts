@@ -249,7 +249,10 @@ export const buildUtils = (options: BuildUtilsDefaults) => {
 
 		printStats: () => console.log(stats.print()),
 
-		symlink: (args: Optional<SymlinkOptions, "to">) => {
+		symlink: (args: Optional<SymlinkOptions, "to"> | string) => {
+			if(typeof(args) === "string"){
+				args = {from: args}
+			}
 			const defaultTo = Path.resolve(config.target, Path.basename(args.from))
 			return symlink({to: defaultTo, ...args})
 		},
