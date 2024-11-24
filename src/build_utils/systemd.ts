@@ -81,11 +81,16 @@ const dropExcessiveVersionPortions = (version: string): string => {
 export const generateSystemdExecCommand = (opts: GenerateSystemdExecCommandOptions) => {
 	let nodeExpr = "node"
 	if(opts.nodeVersion){
-		if(!Process.env["NVM_DIR"]){
+		const nvmDir = Process.env["NVM_DIR"]
+		if(!nvmDir){
 			throw new Error("nvm (Node Version Manager) is probably not installed (judging by absence of NVM_DIR environment variable). When systemd exec command is generated, nvm is used in cases when node version is specified (and node version can default to package.json's engines.node).")
 		}
 		const nodeVersion = findMostModernNodeVersionFromSemverRange(opts.nodeVersion)
-		nodeExpr = `. $NVM_DIR/nvm.sh; nvm run ${ShellEscape([nodeVersion])}`
+
+		// we have to inline $NVM_DIR, because it's not available when launched from within systemd script, not sure why
+		// it may cause problems when generating global (aka root) service definitions, because $NVM_DIR could point to local user dir
+		const nvmshPath = Path.resolve(nvmDir, "nvm.sh")
+		nodeExpr = `. ${ShellEscape([nvmshPath])}; nvm run ${ShellEscape([nodeVersion])}`
 	}
 	const jsExpr = ShellEscape([opts.jsPath, ...opts.args ?? []])
 	let pipeExpr = ""
