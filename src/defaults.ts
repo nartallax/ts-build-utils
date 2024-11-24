@@ -276,13 +276,13 @@ export const buildUtils = (options: BuildUtilsDefaults) => {
 			for example, working directory will default to absolute path to local build directory; etc. */
 			generateServiceConfig: async(opts: Optional<GenerateServiceSystemdConfigOptions, "outputPath"> & {execOptions?: Optional<GenerateSystemdExecCommandOptions, "jsPath">} = {}) => await generateServiceSystemdConfig({
 				execStart: opts.execStart ?? await buildUtils.systemd.generateExecCommand(opts.execOptions),
-				outputPath: config.systemdConfigPath,
+				outputPath: await config.getSystemdConfigPath(),
 				workingDirectory: config.target,
 				description: await config.getPackageNameWithoutNamespace(),
 				...opts
 			}),
-			installService: (opts: Optional<InstallSystemdConfigOptions, "configPath">) => installSystemdService({
-				configPath: config.systemdConfigPath,
+			installService: async(opts: Optional<InstallSystemdConfigOptions, "configPath">) => await installSystemdService({
+				configPath: await config.getSystemdConfigPath(),
 				...opts
 			}),
 			start: wrapSystemdAction(systemdStart),

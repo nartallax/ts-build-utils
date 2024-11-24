@@ -207,10 +207,10 @@ export const getConfigUtils = (defaults: BuildUtilsDefaults) => {
 		return name
 	}
 
-	const systemdConfigPath = Path.resolve(target, getPackageNameWithoutNamespace() + ".service")
+	const getSystemdConfigPath = async() => Path.resolve(target, await getPackageNameWithoutNamespace() + ".service")
 
 	return {
-		target, packageJson, tsconfig, getTsconfigContent, getPackageJsonContent, testJs, systemdConfigPath, getBinPathsFromPackageJson, getSingleTypescriptEntrypoint, getBuildOptions, getDtsPath, getSourcesRoot, getTestEntrypoint, getEffectiveIconArgs, getGeneratedSourcesRoot, getSingleBinPathFromPackageJson, getPackageNameWithoutNamespace
+		target, packageJson, tsconfig, getTsconfigContent, getPackageJsonContent, testJs, getSystemdConfigPath, getBinPathsFromPackageJson, getSingleTypescriptEntrypoint, getBuildOptions, getDtsPath, getSourcesRoot, getTestEntrypoint, getEffectiveIconArgs, getGeneratedSourcesRoot, getSingleBinPathFromPackageJson, getPackageNameWithoutNamespace
 	}
 }
 
