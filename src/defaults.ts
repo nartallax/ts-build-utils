@@ -256,6 +256,9 @@ export const buildUtils = (options: BuildUtilsDefaults) => {
 		isFileExists,
 		isDirectoryExists,
 		isSymlinkExists,
+		/** Re-run currently running script with this args.
+		Can be useful if script could have changed, for example after git pull */
+		runBuildScript: (...args: string[]) => runJs({jsFile: process.argv[1]!, args}),
 
 		systemd: {
 			generateExecCommand: (opts: Optional<GenerateSystemdExecCommandOptions, "jsPath"> = {}) => generateSystemdExecCommand({

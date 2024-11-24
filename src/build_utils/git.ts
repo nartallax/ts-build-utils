@@ -5,7 +5,7 @@ type PullOptions = Omit<ShellRunOptions, "executable" | "args"> & {
 }
 
 export const git = {
-	pull: async({branch, ...shellOpts}: PullOptions) => {
+	pull: async({branch, ...shellOpts}: PullOptions = {}) => {
 		const args = ["pull"]
 		if(branch){
 			args.push(branch)
