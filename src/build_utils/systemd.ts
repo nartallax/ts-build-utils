@@ -137,8 +137,8 @@ export type InstallSystemdConfigOptions = SystemdCommandBaseOptions & {
 export const installSystemdService = async({configPath, ...opts}: InstallSystemdConfigOptions) => {
 	const serviceFileName = Path.basename(configPath)
 	const serviceSymlinkTarget = opts.isGlobal
-		? Path.resolve(Os.homedir(), ".config/systemd/user/", serviceFileName)
-		: Path.resolve("/etc/systemd/user", serviceFileName)
+		? Path.resolve("/etc/systemd/user", serviceFileName)
+		: Path.resolve(Os.homedir(), ".config/systemd/user/", serviceFileName)
 
 	if(!(await isSymlinkExists(serviceSymlinkTarget))){
 		// directory could not exist if it's first ever service of this user
