@@ -1,9 +1,6 @@
 import {promises as Fs} from "fs"
 import {runShell, ShellRunOptions} from "shell"
-import * as Process from "process"
-import * as Os from "os"
 import * as Path from "path"
-import * as Semver from "semver"
 import ShellEscape from "shell-escape"
 import {isSymlinkExists, symlink} from "build_utils/fs_utils"
 
@@ -19,9 +16,10 @@ export type SystemdCommandOptions = Omit<ShellRunOptions, "executable" | "args">
 const systemctlDirEnvName = "XDG_RUNTIME_DIR"
 
 export const systemdCommand = async(opts: SystemdCommandOptions) => {
+	const Os = await import("os")
 	const env = {...opts.env ?? {}}
 
-	if(!Process.env[systemctlDirEnvName]){
+	if(!process.env[systemctlDirEnvName]){
 		// for some reason XDG_RUNTIME_DIR is sometimes absent
 		env[systemctlDirEnvName] = `/run/user/${Os.userInfo().uid}`
 	}
@@ -45,8 +43,8 @@ export type GenerateSystemdExecCommandOptions = {
 	pipeTo?: string
 }
 
-const findMostModernNodeVersionFromSemverRange = (rangeStr: string): string => {
-	const range = new Semver.Range(rangeStr)
+const findMostModernNodeVersionFromSemverRange = async(rangeStr: string): Promise<string> => {
+	const range = new((await import("semver")).Range)(rangeStr)
 	let bestGuess: string | null = null
 	for(const set of range.set){
 		for(const entry of set){
@@ -78,14 +76,14 @@ const dropExcessiveVersionPortions = (version: string): string => {
 	return version
 }
 
-export const generateSystemdExecCommand = (opts: GenerateSystemdExecCommandOptions) => {
+export const generateSystemdExecCommand = async(opts: GenerateSystemdExecCommandOptions) => {
 	let nodeExpr = "node"
 	if(opts.nodeVersion){
-		const nvmDir = Process.env["NVM_DIR"]
+		const nvmDir = process.env["NVM_DIR"]
 		if(!nvmDir){
 			throw new Error("nvm (Node Version Manager) is probably not installed (judging by absence of NVM_DIR environment variable). When systemd exec command is generated, nvm is used in cases when node version is specified (and node version can default to package.json's engines.node).")
 		}
-		const nodeVersion = findMostModernNodeVersionFromSemverRange(opts.nodeVersion)
+		const nodeVersion = await findMostModernNodeVersionFromSemverRange(opts.nodeVersion)
 
 		// we have to inline $NVM_DIR, because it's not available when launched from within systemd script, not sure why
 		// it may cause problems when generating global (aka root) service definitions, because $NVM_DIR could point to local user dir
@@ -140,6 +138,8 @@ export type InstallSystemdConfigOptions = SystemdCommandBaseOptions & {
 }
 
 export const installSystemdService = async({configPath, ...opts}: InstallSystemdConfigOptions) => {
+	const Os = await import("os")
+
 	const serviceFileName = Path.basename(configPath)
 	const serviceSymlinkTarget = opts.isGlobal
 		? Path.resolve("/etc/systemd/user", serviceFileName)

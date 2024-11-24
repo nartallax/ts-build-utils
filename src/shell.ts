@@ -1,7 +1,6 @@
-import * as Process from "process"
-import * as ChildProcess from "child_process"
-import * as Stream from "stream"
-import * as Readline from "readline"
+import type * as ChildProcess from "child_process"
+import type * as Stream from "stream"
+import type * as Readline from "readline"
 import ShellEscape from "shell-escape"
 
 export type ShellRunResult = {
@@ -26,15 +25,13 @@ export type ShellRunOptions = {
 }
 
 export const runShell = (opts: ShellRunOptions): Promise<ShellRunResult> => {
-	return new Promise((resolve, reject) => {
-		const process = startProcess(opts)
+	return startProcess(opts).then(proc => new Promise((resolve, reject) => {
+		proc.on("error", reject)
 
-		process.on("error", reject)
-
-		process.on("exit", (code, signal) => {
+		proc.on("exit", (code, signal) => {
 			if(code || signal){
 				if(opts.exitOnError){
-					Process.exit(1)
+					process.exit(1)
 				}
 				const commandStr = ShellEscape([opts.executable, ...opts.args ?? []])
 				const exitedWith = code === null ? `signal ${signal}` : `code ${code}`
@@ -44,10 +41,14 @@ export const runShell = (opts: ShellRunOptions): Promise<ShellRunResult> => {
 
 			resolve({exitCode: code, signal})
 		})
-	})
+	}))
 }
 
-export const startProcess = (opts: ShellRunOptions) => {
+export const startProcess = async(opts: ShellRunOptions) => {
+	const Process = await import("process")
+	const ChildProcess = await import("child_process")
+	const Readline = await import("readline")
+
 	let binaryPath = opts.executable
 	const cliArgs = opts.args ?? []
 	const spawnOpts: ChildProcess.SpawnOptions = {
@@ -71,11 +72,11 @@ export const startProcess = (opts: ShellRunOptions) => {
 	})
 
 	const {onStderr, onStdout} = opts
-	let stdoutReader = createReadline(proc.stdout, !onStdout ? undefined : line => {
+	let stdoutReader = createReadline(Readline, proc.stdout, !onStdout ? undefined : line => {
 		Process.stdout.write(line + "\n")
 		onStdout(line)
 	})
-	let stderrReader = createReadline(proc.stderr, !onStderr ? undefined : line => {
+	let stderrReader = createReadline(Readline, proc.stderr, !onStderr ? undefined : line => {
 		Process.stderr.write(line + "\n")
 		onStderr(line)
 	})
@@ -83,12 +84,12 @@ export const startProcess = (opts: ShellRunOptions) => {
 	return proc
 }
 
-const createReadline = (stream: Stream.Readable | null, handler?: (line: string) => void): Readline.Interface | null => {
+const createReadline = (rl: typeof Readline, stream: Stream.Readable | null, handler?: (line: string) => void): Readline.Interface | null => {
 	if(!stream || !handler){
 		return null
 	}
 
-	const result = Readline.createInterface({input: stream})
+	const result = rl.createInterface({input: stream})
 	result.on("line", handler)
 	return result
 }

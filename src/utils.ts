@@ -1,4 +1,4 @@
-import * as Fs from "fs"
+import type * as Fs from "fs"
 
 export const omit = <T extends object, K extends keyof T>(value: T, ...keys: K[]): Omit<T, K> => {
 	const result: any = {}
@@ -39,7 +39,7 @@ export const oneAtATime = (doWork: () => Promise<void>): () => Promise<void> => 
 export const getFileSizeStr = async(path: string): Promise<string> => {
 	let stat: Fs.Stats
 	try {
-		stat = await Fs.promises.stat(path)
+		stat = await((await import("fs")).promises).stat(path)
 	} catch(e){
 		void e
 		return "-"

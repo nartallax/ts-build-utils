@@ -22,7 +22,7 @@ const {
   build, 
   runTests, 
   copyToTarget, 
-  publishToNpm, 
+  npm,
   serve
 } = buildUtils({
   buildOptions: {
@@ -52,7 +52,7 @@ switch(process.argv[2]){
   case "publish": {
     await build()
     await copyToTarget("README.md", "LICENSE", "package.json")
-    await publishToNpm({dryRun: true})
+    await npm.publish({dryRun: true})
   }
 }
 ```

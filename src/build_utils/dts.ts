@@ -1,4 +1,3 @@
-import * as DtsBundleGenerator from "dts-bundle-generator"
 import {promises as Fs} from "fs"
 
 export type GenerateDtsOptions = {
@@ -10,7 +9,7 @@ export type GenerateDtsOptions = {
 }
 
 export const generateDts = async(options: GenerateDtsOptions) => {
-	const result = DtsBundleGenerator.generateDtsBundle([{
+	const result = (await import("dts-bundle-generator")).generateDtsBundle([{
 		filePath: options.inputFile,
 		output: {
 			noBanner: true,

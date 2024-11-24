@@ -1,8 +1,7 @@
 import {BuildUtilsDefaults, IconParams, omitCustomBuildOptions} from "defaults"
-import * as Fs from "fs"
 import * as Path from "path"
-import * as JSONC from "jsonc-parser"
-import * as Esbuild from "esbuild"
+import type * as Esbuild from "esbuild"
+import type * as JSONC from "jsonc-parser"
 import {BuildOptionsWithHandlers} from "build_utils/esbuild"
 
 export type ConfigUtils = ReturnType<typeof getConfigUtils>
@@ -11,50 +10,60 @@ export const getConfigUtils = (defaults: BuildUtilsDefaults) => {
 	const target = Path.resolve(defaults.target ?? "./target")
 	const packageJson = Path.resolve(defaults.packageJson ?? "./package.json")
 	const tsconfig = Path.resolve(defaults.tsconfig ?? "./tsconfig.json")
-	const tsconfigContent = parseJsoncOrThrow(Fs.readFileSync(tsconfig, "utf-8"), tsconfig)
-	const packageJsonContent = JSON.parse(Fs.readFileSync(packageJson, "utf-8"))
+
 	const testJs = defaults.testJs ?? Path.resolve(target, "./test.js")
 
 	const tsRegexp = /\.tsx?$/i
 
-	const getSourcesRoot = (override?: string): string => {
+	let tsconfigContent: string | null = null
+	const getTsconfigContent = async() => {
+		return tsconfigContent ??= await parseJsoncOrThrow(await((await import("fs")).promises).readFile(tsconfig, "utf-8"), tsconfig)
+	}
+
+	let packageJsonContent: string | null = null
+	const getPackageJsonContent = async() => {
+		return packageJsonContent ??= JSON.parse(await((await import("fs")).promises).readFile(packageJson, "utf-8"))
+	}
+
+	const getSourcesRoot = async(override?: string): Promise<string> => {
 		if(override){
 			return override
 		}
 		if(defaults.sources){
 			return defaults.sources
 		}
+		const tsconfigContent = await getTsconfigContent()
 		if(tsconfigContent.compilerOptions.rootDir){
 			return tsconfigContent.compilerOptions.rootDir
 		}
 		throw new Error("Path to sources root is not passed, and cannot be deduced from tsconfig.json content (there's no \"rootDir\" field in \"compilerOptions\"). Need to know sources root to proceed.")
 	}
 
-	const getDtsPath = (override?: string): string => {
+	const getDtsPath = async(override?: string): Promise<string> => {
 		if(override){
 			return override
 		}
 		if(defaults.dtsPath){
 			return defaults.dtsPath
 		}
-		if(packageJsonContent.types){
-			return Path.resolve(target, packageJsonContent.types)
+		if((await getPackageJsonContent()).types){
+			return Path.resolve(target, (await getPackageJsonContent()).types)
 		}
 		throw new Error("Path to output .d.ts file is not passed, and there's no \"types\" field in package.json to determine filename; don't know where to put generated file.")
 	}
 
-	const getGeneratedSourcesRoot = (override?: string): string => {
+	const getGeneratedSourcesRoot = async(override?: string): Promise<string> => {
 		if(override){
 			return override
 		}
-		return defaults.generatedSources ?? Path.resolve(getSourcesRoot(), "./generated")
+		return defaults.generatedSources ?? Path.resolve(await getSourcesRoot(), "./generated")
 	}
 
-	const getTestEntrypoint = (override?: string): string => {
+	const getTestEntrypoint = async(override?: string): Promise<string> => {
 		if(override){
 			return override
 		}
-		return defaults.testEntrypoint ?? Path.resolve(getGeneratedSourcesRoot(), "./test.ts")
+		return defaults.testEntrypoint ?? Path.resolve(await getGeneratedSourcesRoot(), "./test.ts")
 	}
 
 	const getEntrypoints = (buildOptions: Partial<Esbuild.BuildOptions>): string[] | {in: string, out: string}[] => {
@@ -73,7 +82,7 @@ export const getConfigUtils = (defaults: BuildUtilsDefaults) => {
 	const getBuildOptions = async(overrides?: Partial<BuildOptionsWithHandlers>) => {
 		const defaultBuildOptions = defaults.defaultBuildOptions ?? {
 			bundle: true,
-			format: packageJsonContent.type === "module" ? "esm" : "cjs",
+			format: (await getPackageJsonContent()).type === "module" ? "esm" : "cjs",
 			platform: "neutral",
 			packages: "external"
 		}
@@ -83,8 +92,9 @@ export const getConfigUtils = (defaults: BuildUtilsDefaults) => {
 			const entryPointFile = defaultEntryPoints[0]
 			if(typeof(entryPointFile) === "string" && tsRegexp.test(entryPointFile)){
 				// this is a case of library-project. we should rename output file to what's in package.json, if any
-				if(packageJsonContent.main){
-					let outName: string = packageJsonContent.main
+				const main = (await getPackageJsonContent()).main
+				if(main){
+					let outName: string = main
 					const ext = Path.extname(outName)
 					if(ext){
 						outName = outName.substring(0, outName.length - ext.length)
@@ -126,7 +136,7 @@ export const getConfigUtils = (defaults: BuildUtilsDefaults) => {
 		}
 
 		return {
-			sourceRoot: getSourcesRoot(),
+			sourceRoot: await getSourcesRoot(),
 			// outdir is required for serve, and is also used for everything else for consistensy
 			outdir: target,
 			...omitCustomBuildOptions(defaultBuildOptions),
@@ -136,20 +146,21 @@ export const getConfigUtils = (defaults: BuildUtilsDefaults) => {
 		}
 	}
 
-	const getBinPathsFromPackageJson = (): string[] => {
-		if(!packageJsonContent.bin){
+	const getBinPathsFromPackageJson = async(): Promise<string[]> => {
+		const bin = (await getPackageJsonContent()).bin
+		if(!bin){
 			return []
 		}
 
-		if(typeof(packageJsonContent.bin) === "string"){
-			return [packageJsonContent.bin]
+		if(typeof(bin) === "string"){
+			return [bin]
 		}
 
-		return Object.values(packageJsonContent.bin)
+		return Object.values(bin)
 	}
 
-	const getSingleBinPathFromPackageJson = (): string => {
-		const bins = getBinPathsFromPackageJson()
+	const getSingleBinPathFromPackageJson = async(): Promise<string> => {
+		const bins = await getBinPathsFromPackageJson()
 		if(bins.length === 0){
 			throw new Error("No runnable JS file is defined in package.json, and none passed explicitly.")
 		}
@@ -188,8 +199,8 @@ export const getConfigUtils = (defaults: BuildUtilsDefaults) => {
 		return {...(defaults.icons! ?? {}), ...(overrides! ?? {})}
 	}
 
-	const getPackageNameWithoutNamespace = () => {
-		let name: string = packageJsonContent.name
+	const getPackageNameWithoutNamespace = async() => {
+		let name: string = (await getPackageJsonContent()).name
 		if(name.startsWith("@")){
 			name = name.split("/").slice(1).join("/")
 		}
@@ -199,13 +210,14 @@ export const getConfigUtils = (defaults: BuildUtilsDefaults) => {
 	const systemdConfigPath = Path.resolve(target, getPackageNameWithoutNamespace() + ".service")
 
 	return {
-		target, packageJson, tsconfig, tsconfigContent, packageJsonContent, testJs, systemdConfigPath, getBinPathsFromPackageJson, getSingleTypescriptEntrypoint, getBuildOptions, getDtsPath, getSourcesRoot, getTestEntrypoint, getEffectiveIconArgs, getGeneratedSourcesRoot, getSingleBinPathFromPackageJson, getPackageNameWithoutNamespace
+		target, packageJson, tsconfig, getTsconfigContent, getPackageJsonContent, testJs, systemdConfigPath, getBinPathsFromPackageJson, getSingleTypescriptEntrypoint, getBuildOptions, getDtsPath, getSourcesRoot, getTestEntrypoint, getEffectiveIconArgs, getGeneratedSourcesRoot, getSingleBinPathFromPackageJson, getPackageNameWithoutNamespace
 	}
 }
 
 
-const parseJsoncOrThrow = (jsoncString: string, filePath?: string) => {
+const parseJsoncOrThrow = async(jsoncString: string, filePath?: string) => {
 	const errors: JSONC.ParseError[] = []
+	const JSONC = await import("jsonc-parser")
 	const parsingResult = JSONC.parse(
 		jsoncString,
 		errors,
@@ -215,7 +227,7 @@ const parseJsoncOrThrow = (jsoncString: string, filePath?: string) => {
 		const {error: errorCode, offset} = errors[0]!
 		const errName = JSONC.printParseErrorCode(errorCode)
 		throw new Error(
-			`Cannot parse ${filePath ?? JSONC}: got ${errName} at position ${offset}`
+			`Cannot parse ${filePath ?? "JSONC"}: got ${errName} at position ${offset}`
 		)
 	}
 	return parsingResult

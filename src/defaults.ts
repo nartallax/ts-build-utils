@@ -1,7 +1,5 @@
 import * as Path from "path"
-import * as Fs from "fs"
-import * as Esbuild from "esbuild"
-import * as Chokidar from "chokidar"
+import type * as Esbuild from "esbuild"
 
 import {generateDts, GenerateDtsOptions} from "build_utils/dts"
 import {npx} from "build_utils/npx"
@@ -12,9 +10,9 @@ import {runShell} from "shell"
 import {BuildOptionsWithHandlers, buildWatch, omitBuildHandlers} from "build_utils/esbuild"
 import {npmInstall, NpmInstallOptions, npmPublish, NpmPublishOptions} from "build_utils/npm"
 import {getFileSizeStr, omit, oneAtATime} from "utils"
-import {cutPackageJson} from "@nartallax/package-cutter"
+import type {cutPackageJson} from "@nartallax/package-cutter"
 import {StatsCollector} from "build_utils/stats"
-import {generateIconFont} from "@nartallax/icon-font-tool"
+import type {generateIconFont} from "@nartallax/icon-font-tool"
 import {getConfigUtils} from "config_utils"
 import {git} from "build_utils/git"
 import {isDirectoryExists, isFileExists, isSymlinkExists, symlink, SymlinkOptions} from "build_utils/fs_utils"
@@ -75,13 +73,15 @@ export const buildUtils = (options: BuildUtilsDefaults) => {
 	const tryBuildIconFont = async(overrides?: IconParams) => {
 		const args = config.getEffectiveIconArgs(overrides)
 		if(args){
-			await generateIconFont(args)
+			await(await import("@nartallax/icon-font-tool")).generateIconFont(args)
 		}
 	}
 
 	const watchIcons = async(args: IconParams): Promise<() => void> => {
+		const generateIconFont = (await import("@nartallax/icon-font-tool")).generateIconFont
+
 		await generateIconFont(args)
-		const watcher = Chokidar.watch([args.svgDir], {awaitWriteFinish: true}).on("all", async() => {
+		const watcher = (await import("chokidar")).watch([args.svgDir], {awaitWriteFinish: true}).on("all", async() => {
 			try {
 				await generateIconFont(args)
 			} catch(e){
@@ -102,8 +102,8 @@ export const buildUtils = (options: BuildUtilsDefaults) => {
 	}
 
 	const wrapSystemdAction = (cmd: (opts: SystemdServiceActionOptions) => Promise<void>) =>
-		(opts: Optional<SystemdServiceActionOptions, "serviceName"> = {}) => cmd({
-			serviceName: config.getPackageNameWithoutNamespace(),
+		async(opts: Optional<SystemdServiceActionOptions, "serviceName"> = {}) => await cmd({
+			serviceName: await config.getPackageNameWithoutNamespace(),
 			...opts
 		})
 
@@ -115,14 +115,14 @@ export const buildUtils = (options: BuildUtilsDefaults) => {
 		git,
 
 		/** Run arbitrary JS file in a separate process */
-		runJs: (opts: Optional<RunJsOptions, "jsFile"> = {}) => runJs({
-			jsFile: opts.jsFile ?? config.getSingleBinPathFromPackageJson(),
+		runJs: async(opts: Optional<RunJsOptions, "jsFile"> = {}) => await runJs({
+			jsFile: opts.jsFile ?? await config.getSingleBinPathFromPackageJson(),
 			...opts
 		}),
 
 		/** Start long-running process from JS file. */
-		startJsProcess: (opts: Optional<StartJsProcessOptions, "jsFile"> = {}) => startJsProcess({
-			jsFile: opts.jsFile ?? config.getSingleBinPathFromPackageJson(),
+		startJsProcess: async(opts: Optional<StartJsProcessOptions, "jsFile"> = {}) => await startJsProcess({
+			jsFile: opts.jsFile ?? await config.getSingleBinPathFromPackageJson(),
 			...opts
 		}),
 
@@ -138,56 +138,58 @@ export const buildUtils = (options: BuildUtilsDefaults) => {
 		Expects the files to be present in target directory.
 		Defaults to all files mentioned in "bin" field of package.json */
 		addNodeShebang: stats.wrap("add node shebang", async(opts: {jsFile?: string | string[]} = {}) => {
-			const files = Array.isArray(opts.jsFile) ? opts.jsFile : opts.jsFile ? [opts.jsFile] : config.getBinPathsFromPackageJson()
+			const files = Array.isArray(opts.jsFile) ? opts.jsFile : opts.jsFile ? [opts.jsFile] : await config.getBinPathsFromPackageJson()
 			if(files.length === 0){
 				throw new Error("No files are passed, and also no files are defined in \"bin\" field of package.json. Nothing to add shebang to.")
 			}
 			for(const file of files){
 				const fullPath = Path.resolve(config.target, file)
-				let content = await Fs.promises.readFile(fullPath, "utf-8")
+				let content = await((await import("fs")).promises).readFile(fullPath, "utf-8")
 				content = "#!/usr/bin/env node\n\n" + content
-				await Fs.promises.writeFile(fullPath, content, "utf-8")
+				await((await import("fs")).promises).writeFile(fullPath, content, "utf-8")
 			}
 		}),
 
 		/** Remove some fields from package.json that no-one needs in published package, like "scripts" or "devDependenices".
 		Puts result into a new file in target directory. */
-		cutPackageJson: stats.wrap("cut package.json", (opts: Optional<Parameters<typeof cutPackageJson>[0], "output"> = {}) => cutPackageJson({
-			input: config.packageJson,
-			output: Path.resolve(config.target, "package.json"),
-			isSilent: true,
-			...opts
-		}), () => getFileSizeStr(Path.resolve(config.target, "package.json"))),
+		cutPackageJson: stats.wrap("cut package.json", async(opts: Optional<Parameters<typeof cutPackageJson>[0], "output"> = {}) => {
+			return await(await import("@nartallax/package-cutter")).cutPackageJson({
+				input: config.packageJson,
+				output: Path.resolve(config.target, "package.json"),
+				isSilent: true,
+				...opts
+			})
+		}),
 
 		/** Generate type definitions file from entrypoint */
-		generateDts: stats.wrap("generate .d.ts", (options: Optional<GenerateDtsOptions, "inputFile" | "outputFile" | "tsconfigPath"> = {}) => generateDts({
+		generateDts: stats.wrap("generate .d.ts", async(options: Optional<GenerateDtsOptions, "inputFile" | "outputFile" | "tsconfigPath"> = {}) => await generateDts({
 			tsconfigPath: config.tsconfig,
 			...options,
 			inputFile: config.getSingleTypescriptEntrypoint(options.inputFile),
-			outputFile: config.getDtsPath(options.outputFile)
-		}), (_, options = {}) => getFileSizeStr(config.getDtsPath(options.outputFile))),
+			outputFile: await config.getDtsPath(options.outputFile)
+		})),
 
 		/** Run TypeScript typechecker on all the sources in the project. */
-		typecheck: stats.wrap("typecheck", (options: Optional<TypecheckOptions, "directory" | "tsconfig"> = {}) => typecheck({
+		typecheck: stats.wrap("typecheck", async(options: Optional<TypecheckOptions, "directory" | "tsconfig"> = {}) => await typecheck({
 			tsconfig: config.tsconfig,
 			...options,
-			directory: config.getSourcesRoot(options.directory)
+			directory: await config.getSourcesRoot(options.directory)
 		})),
 
 		/** Gather all .test.ts(x) files in the project and reference them in a single .ts file */
-		generateTestEntrypoint: stats.wrap("generate test entrypoint", (options: Optional<TestEntrypointGenerationOptions, "generatedTestEntrypointPath" | "sourcesRoot"> = {}) => generateTestEntrypoint({
+		generateTestEntrypoint: stats.wrap("generate test entrypoint", async(options: Optional<TestEntrypointGenerationOptions, "generatedTestEntrypointPath" | "sourcesRoot"> = {}) => await generateTestEntrypoint({
 			...options,
-			sourcesRoot: config.getGeneratedSourcesRoot(options.sourcesRoot),
-			generatedTestEntrypointPath: config.getTestEntrypoint(options.generatedTestEntrypointPath)
-		}), (_, options = {}) => config.getTestEntrypoint(options.generatedTestEntrypointPath)),
+			sourcesRoot: await config.getGeneratedSourcesRoot(options.sourcesRoot),
+			generatedTestEntrypointPath: await config.getTestEntrypoint(options.generatedTestEntrypointPath)
+		})),
 
 		/** Run tests from selected .test.ts(x) files */
 		runTests: stats.wrap("run tests", async(options: Optional<TestRunOptions, "generatedTestEntrypointPath" | "sourcesRoot" | "testJsFilePath"> = {}) => await runTests({
-			sourcesRoot: config.getSourcesRoot(),
+			sourcesRoot: await config.getSourcesRoot(),
 			testJsFilePath: config.testJs,
 			...options,
 			buildOptions: await config.getBuildOptions(options.buildOptions),
-			generatedTestEntrypointPath: config.getTestEntrypoint(options.generatedTestEntrypointPath)
+			generatedTestEntrypointPath: await config.getTestEntrypoint(options.generatedTestEntrypointPath)
 		})),
 
 		npm: {
@@ -202,8 +204,8 @@ export const buildUtils = (options: BuildUtilsDefaults) => {
 		/** Build a project from sources, starting at entrypoint */
 		build: stats.wrap("build", async(options: Partial<CustomBuildOptions> = {}) => {
 			await tryBuildIconFont(options.iconFont)
-			return await Esbuild.build(await config.getBuildOptions(options))
-		}, () => getFileSizeStr(Path.resolve(config.target, config.packageJsonContent.main))),
+			return await(await import("esbuild")).build(await config.getBuildOptions(options))
+		}),
 
 		/** Generate icon font. */
 		buildIconFont: stats.wrap("icons", tryBuildIconFont),
@@ -223,7 +225,7 @@ export const buildUtils = (options: BuildUtilsDefaults) => {
 		serve: async(serveOptions: Esbuild.ServeOptions = {}, options: Partial<CustomBuildOptions> = {}) => {
 			prependToHandler(options.onBuildEnd, await tryWatchIconFont(options.iconFont))
 
-			const ctx = await Esbuild.context(await config.getBuildOptions(options))
+			const ctx = await(await import("esbuild")).context(await config.getBuildOptions(options))
 			const serveResult = await ctx.serve({
 				servedir: config.target,
 				host: "localhost",
@@ -235,7 +237,7 @@ export const buildUtils = (options: BuildUtilsDefaults) => {
 
 		/** Delete everything from target directory */
 		clear: stats.wrap("clear", async(options: {directory?: string} = {}) => {
-			await Fs.promises.rm(options.directory ?? config.target, {force: true, recursive: true})
+			await((await import("fs")).promises).rm(options.directory ?? config.target, {force: true, recursive: true})
 		}),
 
 		/** Copy files to target directory, retaining filenames. */
@@ -243,7 +245,7 @@ export const buildUtils = (options: BuildUtilsDefaults) => {
 			await Promise.all(files.map(async file => {
 				const name = Path.basename(file)
 				const targetPath = Path.resolve(config.target, name)
-				await Fs.promises.copyFile(file, targetPath)
+				await((await import("fs")).promises).copyFile(file, targetPath)
 			}))
 		}, async(_, ...files) => (await Promise.all(files.map(file => getFileSizeStr(file)))).join(" + ")),
 
@@ -264,19 +266,19 @@ export const buildUtils = (options: BuildUtilsDefaults) => {
 		runBuildScript: (...args: string[]) => runJs({jsFile: process.argv[1]!, args}),
 
 		systemd: {
-			generateExecCommand: (opts: Optional<GenerateSystemdExecCommandOptions, "jsPath"> = {}) => generateSystemdExecCommand({
-				jsPath: opts.jsPath ?? config.getSingleBinPathFromPackageJson(),
-				nodeVersion: config.packageJsonContent.engines?.node,
+			generateExecCommand: async(opts: Optional<GenerateSystemdExecCommandOptions, "jsPath"> = {}) => await generateSystemdExecCommand({
+				jsPath: opts.jsPath ?? await config.getSingleBinPathFromPackageJson(),
+				nodeVersion: (await config.getPackageJsonContent()).engines?.node,
 				...opts
 			}),
 			/** Generate systemd .service file.
 			Defaults imply that config is generated for machine the service will run on;
 			for example, working directory will default to absolute path to local build directory; etc. */
-			generateServiceConfig: (opts: Optional<GenerateServiceSystemdConfigOptions, "outputPath"> & {execOptions?: Optional<GenerateSystemdExecCommandOptions, "jsPath">} = {}) => generateServiceSystemdConfig({
-				execStart: opts.execStart ?? buildUtils.systemd.generateExecCommand(opts.execOptions),
+			generateServiceConfig: async(opts: Optional<GenerateServiceSystemdConfigOptions, "outputPath"> & {execOptions?: Optional<GenerateSystemdExecCommandOptions, "jsPath">} = {}) => await generateServiceSystemdConfig({
+				execStart: opts.execStart ?? await buildUtils.systemd.generateExecCommand(opts.execOptions),
 				outputPath: config.systemdConfigPath,
 				workingDirectory: config.target,
-				description: config.packageJsonContent.description ?? config.getPackageNameWithoutNamespace(),
+				description: await config.getPackageNameWithoutNamespace(),
 				...opts
 			}),
 			installService: (opts: Optional<InstallSystemdConfigOptions, "configPath">) => installSystemdService({

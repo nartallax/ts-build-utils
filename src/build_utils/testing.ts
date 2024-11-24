@@ -1,4 +1,4 @@
-import * as Esbuild from "esbuild"
+import type * as Esbuild from "esbuild"
 import {Clamsensor} from "@nartallax/clamsensor"
 
 export type TestEntrypointGenerationOptions = {
@@ -22,6 +22,8 @@ export type TestRunOptions = TestEntrypointGenerationOptions & {
 }
 
 export const runTests = async(options: TestRunOptions) => {
+	const Esbuild = await import("esbuild")
+
 	await generateTestEntrypoint(options)
 	await Esbuild.build({
 		...options.buildOptions ?? {},

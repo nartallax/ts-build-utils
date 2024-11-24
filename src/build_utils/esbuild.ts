@@ -1,5 +1,4 @@
-import * as Chokidar from "chokidar"
-import * as Esbuild from "esbuild"
+import type * as Esbuild from "esbuild"
 import {omit} from "utils"
 
 export type BuildOptionsWithHandlers = Esbuild.BuildOptions & {
@@ -16,6 +15,9 @@ export type BuildWatchOptions = BuildOptionsWithHandlers & {
 }
 
 export const buildWatch = async(options: BuildWatchOptions): Promise<Esbuild.BuildContext> => {
+	const Chokidar = await import("chokidar")
+	const Esbuild = await import("esbuild")
+
 	const watchMode = options.watchMode ?? "fs-events"
 	const buildOptions = omit(options, "watchMode", "onBuildEnd")
 	const ctx = await Esbuild.context(buildOptions)
