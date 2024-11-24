@@ -140,7 +140,7 @@ export const installSystemdService = async({configPath, ...opts}: InstallSystemd
 		? Path.resolve(Os.homedir(), ".config/systemd/user/", serviceFileName)
 		: Path.resolve("/etc/systemd/user", serviceFileName)
 
-	if(!(await isSymlinkExists(configPath))){
+	if(!(await isSymlinkExists(serviceSymlinkTarget))){
 		// directory could not exist if it's first ever service of this user
 		await Fs.mkdir(Path.dirname(serviceSymlinkTarget), {recursive: true})
 		await symlink({from: configPath, to: serviceSymlinkTarget})
