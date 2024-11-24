@@ -263,9 +263,14 @@ export const buildUtils = (options: BuildUtilsDefaults) => {
 				nodeVersion: config.packageJsonContent.engines?.node,
 				...opts
 			}),
-			generateServiceConfig: (opts: Optional<GenerateServiceSystemdConfigOptions, "outputPath"> = {}) => generateServiceSystemdConfig({
-				execStart: opts.execStart ?? buildUtils.systemd.generateExecCommand(),
+			/** Generate systemd .service file.
+			Defaults imply that config is generated for machine the service will run on;
+			for example, working directory will default to absolute path to local build directory; etc. */
+			generateServiceConfig: (opts: Optional<GenerateServiceSystemdConfigOptions, "outputPath"> & {execOptions?: Optional<GenerateSystemdExecCommandOptions, "jsPath">} = {}) => generateServiceSystemdConfig({
+				execStart: opts.execStart ?? buildUtils.systemd.generateExecCommand(opts.execOptions),
 				outputPath: config.systemdConfigPath,
+				workingDirectory: config.target,
+				description: config.packageJsonContent.description ?? config.getPackageNameWithoutNamespace(),
 				...opts
 			}),
 			installService: (opts: Optional<InstallSystemdConfigOptions, "configPath">) => installSystemdService({

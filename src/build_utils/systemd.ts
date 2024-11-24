@@ -42,6 +42,7 @@ export type GenerateSystemdExecCommandOptions = {
 	shell?: string
 	/** Additional arguments to be passed to JS file. */
 	args?: string[]
+	pipeTo?: string
 }
 
 const findMostModernNodeVersionFromSemverRange = (rangeStr: string): string => {
@@ -80,14 +81,18 @@ const dropExcessiveVersionPortions = (version: string): string => {
 export const generateSystemdExecCommand = (opts: GenerateSystemdExecCommandOptions) => {
 	let nodeExpr = "node"
 	if(opts.nodeVersion){
+		if(!Process.env["NVM_DIR"]){
+			throw new Error("nvm (Node Version Manager) is probably not installed (judging by absence of NVM_DIR environment variable). When systemd exec command is generated, nvm is used in cases when node version is specified (and node version can default to package.json's engines.node).")
+		}
 		const nodeVersion = findMostModernNodeVersionFromSemverRange(opts.nodeVersion)
-		// it would be nice to test for presence of nvm here
-		// but systemd config may be generated on different machine than the machine command will run on
-		// and I don't want to inline this check, because it would be too large
 		nodeExpr = `. $NVM_DIR/nvm.sh; nvm run ${ShellEscape([nodeVersion])}`
 	}
 	const jsExpr = ShellEscape([opts.jsPath, ...opts.args ?? []])
-	const shellCommand = `${nodeExpr} ${jsExpr}`
+	let pipeExpr = ""
+	if(opts.pipeTo){
+		pipeExpr = ` > ${ShellEscape([opts.pipeTo])} 2>&1`
+	}
+	const shellCommand = `${nodeExpr} ${jsExpr}${pipeExpr}`
 	return ShellEscape(["/usr/bin/env", opts.shell ?? "bash", "-c", shellCommand])
 }
 
@@ -115,9 +120,9 @@ After=${opts.after ?? "network.target"}
 
 [Service]
 Type=${opts.serviceType ?? "simple"}
-${!opts.workingDirectory ? "" : "WorkingDirectory=" + opts.workingDirectory}
-${execStart.map(cmd => `ExecStart=${cmd}`).join("\n")}
-Restart=${opts.restart ?? "always"}                    
+Restart=${opts.restart ?? "always"}
+${!opts.workingDirectory ? "" : "WorkingDirectory=" + opts.workingDirectory + "\n"}${execStart.map(cmd => `ExecStart=${cmd}`).join("\n")}
+
 
 [Install]
 WantedBy=${opts.wantedBy ?? "default.target"}
