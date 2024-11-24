@@ -11,7 +11,7 @@ export const symlink = ({from, to}: SymlinkOptions) => Fs.symlink(Path.resolve(f
 const isFsObjectExists = async(path: string, type: "file" | "directory" | "symlink") => {
 	let stat: Awaited<ReturnType<typeof Fs.stat>>
 	try {
-		stat = await Fs.stat(path)
+		stat = await(type === "symlink" ? Fs.lstat : Fs.stat)(path)
 	} catch(e){
 		if((e as any).code === "ENOENT"){
 			return false
