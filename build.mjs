@@ -26,7 +26,7 @@ async function main(mode) {
 	switch(mode ?? "build"){
 		case "build": {
 			await typecheck()
-			await build({minify: false})
+			await build()
 			// while this package is not expected to be used from TS (build scripts are usually in JS),
 			// it's nice to have .d.ts anyway, for IDEs that can use them for autocomplete
 			await generateDts()
