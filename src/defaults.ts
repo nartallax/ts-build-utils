@@ -8,7 +8,7 @@ import {generateTestEntrypoint, runTests, TestEntrypointGenerationOptions, TestR
 import {typecheck, TypecheckOptions} from "build_utils/typecheck"
 import {runShell} from "shell"
 import {BuildOptionsWithHandlers, buildWatch, omitBuildHandlers} from "build_utils/esbuild"
-import {npmInstall, NpmInstallOptions, npmLink, NpmLinkOptions, npmPublish, NpmPublishOptions} from "build_utils/npm"
+import {npmInstall, NpmInstallOptions, npmLink, NpmLinkOptions, npmPublish, NpmPublishOptions, npmRun, NpmRunOptions} from "build_utils/npm"
 import {getFileSizeStr, omit, oneAtATime} from "utils"
 import type {cutPackageJson} from "@nartallax/package-cutter"
 import {StatsCollector} from "build_utils/stats"
@@ -212,7 +212,9 @@ export const buildUtils = (options: BuildUtilsDefaults) => {
 				}
 
 				return npmLink(opts)
-			})
+			}),
+
+			run: stats.wrap("npm run", (options: NpmRunOptions) => npmRun(options))
 		},
 
 		/** Build a project from sources, starting at entrypoint */

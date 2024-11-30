@@ -79,3 +79,16 @@ export const npmLink = async(options: NpmLinkOptions) => {
 		exitOnError: options.exitOnError ?? true
 	})
 }
+
+export type NpmRunOptions = Omit<ShellRunOptions, "executable" | "args"> & {
+	args: string[]
+}
+
+export const npmRun = async(options: NpmRunOptions) => {
+	await runShell({
+		...options,
+		executable: "npm",
+		args: ["run", ...options.args],
+		exitOnError: options.exitOnError ?? true
+	})
+}
