@@ -1,4 +1,7 @@
 import {runShell, ShellRunOptions} from "shell"
+import * as Path from "path"
+import * as Fs from "fs/promises"
+import {isSymlinkExists} from "build_utils/fs_utils"
 
 export type NpmPublishOptions = Omit<ShellRunOptions, "cwd" | "executable" | "args"> & {
 	directory: string
@@ -38,12 +41,36 @@ export const npmInstall = async(options: NpmInstallOptions) => {
 
 export type NpmLinkOptions = Omit<ShellRunOptions, "executable" | "args"> & {
 	paths?: string[]
+	/** If enabled, paths are passed, and linked packages are already present in node_modules, `npm link` will be skipped
+	This is useful in case npm commands are laggy */
+	skipIfPresent?: boolean
 }
 
 export const npmLink = async(options: NpmLinkOptions) => {
 	const args = ["link"]
 	if(options.paths){
 		args.push(...options.paths)
+		if(options.paths.length > 0 && options.skipIfPresent){
+			const skippablePackages = (await Promise.all(options.paths.map(async packageDirPath => {
+				const packageJsonPath = Path.resolve(packageDirPath, "package.json")
+				const packageJson = JSON.parse(await Fs.readFile(packageJsonPath, "utf-8"))
+				const name = packageJson.name
+				if(typeof(name) !== "string"){
+					throw new Error(`Expected package.json at ${packageJsonPath} to have "name" field with string value.`)
+				}
+
+				const packagePath = Path.resolve("./node_modules", name)
+				if(await isSymlinkExists(packagePath) && await Fs.realpath(packagePath) === await Fs.realpath(packageDirPath)){
+					return name
+				}
+				return null
+
+			}))).filter(x => !!x)
+
+			if(skippablePackages.length === options.paths.length){
+				return
+			}
+		}
 	}
 	await runShell({
 		...options,
