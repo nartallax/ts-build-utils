@@ -51,7 +51,7 @@ export type BuildUtilsDefaults = {
 	defaultBuildOptions?: Partial<BuildOptionsWithHandlers>
 	/** Options that describe icon font.
 	Icon font is automatically built on build(), and watched on watch()/serve() */
-	icons?: IconParams
+	iconFont?: IconParams
 }
 
 type Optional<T, K extends keyof T> = Omit<T, K> & Partial<Pick<T, K>>

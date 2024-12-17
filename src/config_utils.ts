@@ -192,11 +192,11 @@ export const getConfigUtils = (defaults: BuildUtilsDefaults) => {
 	}
 
 	const getEffectiveIconArgs = (overrides?: IconParams): IconParams | null => {
-		if(!overrides && !defaults.icons){
+		if(!overrides && !defaults.iconFont){
 			return null
 		}
 
-		return {...(defaults.icons! ?? {}), ...(overrides! ?? {})}
+		return {...(defaults.iconFont! ?? {}), ...(overrides! ?? {})}
 	}
 
 	const getPackageNameWithoutNamespace = async() => {
